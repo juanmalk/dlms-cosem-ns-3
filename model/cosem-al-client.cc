@@ -1,11 +1,21 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * cosem-al-client.cc
- * Implementation of the Class CosemAlServer
- * Class that represents the COSEM Application Layer - Client side
- * Created on: 26-Sept-2012
- * Modified on:
- * Original author: JUANMALK
+ * Copyright (c) 2012 JMALK
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation;
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *
+ * Author: Juanmalk <jm.aranda121@uniandes.edu.co> 
  */
 
 #include "ns3/log.h"
