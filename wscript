@@ -10,6 +10,7 @@ def build(bld):
         'model/cosem-ap-client.cc',
         'model/udp-cosem-client.cc',
         'model/udp-cosem-server.cc',
+        'model/cosem-header.cc',
         ]
 
    ## module_test = bld.create_ns3_module_test_library('cosem')
@@ -27,6 +28,7 @@ def build(bld):
         'model/cosem-ap-client.h',
         'model/udp-cosem-client.h',
         'model/udp-cosem-server.h',
+        'model/cosem-header.h',
         ]
 
    # bld.ns3_python_bindings()
