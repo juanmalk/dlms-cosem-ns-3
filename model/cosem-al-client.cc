@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2012 JMALK
+ * Copyright (c) 2012 Uniandes (unregistered)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -20,6 +20,8 @@
 
 #include "ns3/log.h"
 #include "ns3/packet.h"
+#include "ns3/simulator.h"
+#include "cosem-header.h"
 #include "cosem-al-client.h"
 #include "cosem-ap-server.h"
 #include "cosem-ap-client.h"
@@ -37,7 +39,7 @@ TypeId
 CosemAlClient::GetTypeId (void)
 {
   static TypeId tid = TypeId ("ns3::CosemAlClient")
-    .SetParent<CosemAl> ()
+    .SetParent<Object> ()
     .AddConstructor<CosemAlClient> ()
     ;
   return tid;
@@ -46,7 +48,13 @@ CosemAlClient::GetTypeId (void)
 CosemAlClient::CosemAlClient ()
 {
   NS_LOG_FUNCTION_NOARGS ();
+  m_typeService = REQUEST;
+  m_typeGet = GET_NORMAL;
+  m_stateCf = CF_INACTIVE;
   m_udpPort = 4056;
+  m_changeStateEvent = EventId ();
+  m_sendApduEvent = EventId ();
+  m_invokeCosemServiceEvent = EventId ();
 }
 
 CosemAlClient::~CosemAlClient ()
@@ -55,7 +63,7 @@ CosemAlClient::~CosemAlClient ()
 }
 
 void 
-CosemAlClient::CosemAcseOpen (int typeService, Ptr<CosemApServer> sap)
+CosemAlClient::CosemAcseOpen (int typeService, Ptr<CosemApServer> cosemApServer)
 {
   //.request
   if (typeService == REQUEST)
@@ -63,45 +71,77 @@ CosemAlClient::CosemAcseOpen (int typeService, Ptr<CosemApServer> sap)
       NS_LOG_INFO ("CAP-->OPEN.req (S)");	
       
       // Event: Change the state of CAL to ASSOCIATION_PENDING
-      Simulator::Schedule (Seconds (0.0), &CosemAl::SetStateCf, this, CF_ASSOCIATION_PENDING, "CLIENT");
+      Simulator::Schedule (Seconds (0.0), &CosemAlClient::SetStateCf, this, CF_ASSOCIATION_PENDING);
 
       // Event: Request an AA establishment: Construct the AARQ APDU of ACSE service 
-      Simulator::Schedule (Seconds (0.0), &CosemAlClient::CosemAcseApdu, this, OPEN, REQUEST, sap);
+      Simulator::Schedule (Seconds (0.0), &CosemAlClient::CosemAcseApdu, this, OPEN, REQUEST, cosemApServer);
     }
 
   //.confirm
   if (typeService == CONFIRM)
-    {
-      // Event: Change the state of CAL to ASSOCIATED
-      Simulator::Schedule (Seconds (0.0), &CosemAl::SetStateCf, this, CF_ASSOCIATED, "CLIENT");
-    
+    {   
+      NS_ASSERT (m_invokeCosemServiceEvent.IsExpired ());
+      Simulator::Cancel (m_invokeCosemServiceEvent);  // necessary?
+
       // Event: Inform to the CAP that an remote SAP responses to its request for an establisment of an AA (OPEN.cnf(OK))
-      Simulator::Schedule (Seconds (0.0), &CosemApClient::Recv, m_cosemApClient, -1, OPEN, -1, CONFIRM); // Check if it really works?????
+      Simulator::Schedule (Seconds (0.0), &CosemApClient::Recv, m_cosemApClient, -1, OPEN, -1, CONFIRM, cosemApServer);
     }
 }
 	
 void 
-CosemAlClient::CosemAcseRelease (int typeService, Ptr<CosemApServer> sap)
+CosemAlClient::CosemAcseRelease (int typeService, Ptr<CosemApServer> cosemApServer)
 {
 
 }
 	
 void 
-CosemAlClient::CosemXdlmsGet (int typeGet, int typeService, Ptr<CosemApServer> sap)
+CosemAlClient::CosemXdlmsGet (int typeGet, int typeService, Ptr<CosemApServer> cosemApServer)
 {
 
 }
 
 void 
-CosemAlClient::CosemAcseApdu (int typeAcseService, int typeService, Ptr<CosemApServer> sap)
+CosemAlClient::CosemAcseApdu (int typeAcseService, int typeService, Ptr<CosemApServer> cosemApServer)
 {
-  CosemAl::CosemAcseApdu (typeAcseService, typeService, sap);
+  if ((typeService == RESPONSE) && (typeAcseService == OPEN))
+    {  
+      // Build an xDLMS-Initiate.req PDU and an AARQ APDU
+      CosemAarqHeader hdr;
+      hdr.SetApplicationContextName (0);  // {N/A}Application Context Name (rules that govern th exchange-parameters)
+      hdr.SetDedicatedKey (0);  // Dedicated Key, {0,N/A}        
+      hdr.SetResponseAllowed (true);  // Reponse Allowed (AA is confirmed), {TRUE}	
+      hdr.SetProposedQualityOfService (0); // Not used, {O, N/A} 
+      hdr.SetProposedDlmsVersionNumber (6);  // Version number, {6}
+      hdr.SetProposedConformance (0x001010);   // {0x001010}, Based on the example in Annex C IEC 62056-53	
+      hdr.SetClientMaxReceivePduSize (0x4B0);  // Client_Max_Receive_PDU_Size,{0x4B0}:1200 bytes
+          
+      Ptr<Packet> packet = Create<Packet> (hdr.GetSerializedSize ()); // Create the AARQ APDU packet
+      packet->AddHeader (hdr); // Copy the header into the packet
+
+      TypeAPDU typeHdr;
+      typeHdr.SetApduType ((ApduType)hdr.GetIdApdu()); // Define the type of APDU
+      packet->AddHeader (typeHdr); // Copy the header into the packet
+    
+      NS_LOG_INFO ("CAL--> AARQ APDU (S)");
+
+      // Event: Send the APDU to the sub-layer Wrapper (Invoke UDP-DATA.req (APDU))
+      double t = (8*hdr.GetSerializedSize ())/(500000) + 2.235e-3;
+      m_sendApduEvent = Simulator::Schedule (Seconds (t), &CosemAlClient::sendApdu, this, packet, cosemApServer);
+    }
+  else if ((typeService == RESPONSE) && (typeAcseService == RELEASE))
+    {
+      // code    
+    }
+  else
+    {
+      NS_LOG_INFO ("Error: Undefined request Cosem service");     
+    }
 }
 	
 void 
-CosemAlClient::CosemXdlmsApdu (int typeGet, int typeService, Ptr<CosemApServer> sap)
+CosemAlClient::CosemXdlmsApdu (int typeGet, int typeService, Ptr<CosemApServer> cosemApServer)
 {
-  CosemAl::CosemXdlmsApdu (typeGet, typeService, sap);
+
 }
 	
 void 
@@ -113,9 +153,35 @@ CosemAlClient::RecvCosemApduTcp (int tcpsService, Ptr<Packet> packet)
 void 
 CosemAlClient::RecvCosemApduUdp (Ptr<Packet> packet)
 {
+  TypeAPDU typeHdr;
 
+  // Copy the Cosem APDU Header from the packet
+  packet->RemoveHeader (typeHdr);
+  ApduType typeAPDU = typeHdr.GetApduType (); 
+ 
+  if (typeAPDU == AARE)
+    {
+      // Extract Associate.cnf and xDLMS-Initiate.res parameters
+      CosemAareHeader hdr;
+      packet->RemoveHeader (hdr);
+      // Event: Change the state of SAL to ASSOCIATION_PENDING
+      m_changeStateEvent = Simulator::Schedule (Seconds (0.0), &CosemAlClient::SetStateCf, this, CF_ASSOCIATED);
+
+      NS_LOG_INFO ("**CAP-->AA_established (S) with SAP ( " << m_cosemWrapperClient->GetwPortServer () << ")");
+
+      // Event: Invoke COSEM-OPEN.cnf(OK) service
+      Ptr<CosemApServer> curretSap =  m_cosemApClient->GetCurretCosemApServer ();
+      m_invokeCosemServiceEvent = Simulator::Schedule (Seconds (0.0), &CosemAlClient::CosemAcseOpen, this, CONFIRM, curretSap);
+    }
 }
-	
+
+void 
+CosemAlClient::sendApdu (Ptr<Packet> packet,  Ptr<CosemApServer> cosemApServer)
+{
+  NS_ASSERT (m_sendApduEvent.IsExpired ());
+  m_cosemWrapperClient->Send (packet, cosemApServer);
+}
+
 void 
 CosemAlClient::SetCosemApClient (Ptr<CosemApClient> cosemApClient)
 {
@@ -140,6 +206,68 @@ CosemAlClient::GetCosemWrapperClient ()
   return m_cosemWrapperClient;
 }
 
+void 
+CosemAlClient::SetStateCf (int state)
+{
+  NS_ASSERT (m_changeStateEvent.IsExpired ());
+  Simulator::Cancel (m_changeStateEvent);
+
+  if (state == CF_IDLE)
+    {
+      m_stateCf = state;
+      NS_LOG_INFO ("CAL-->IDLE (C)");
+    } 
+  else if (state == CF_ASSOCIATION_PENDING)    
+      {
+        m_stateCf = state;
+        NS_LOG_INFO ("CAL-->ASSOCIATION_PENDING (C)");
+      }
+  else if (state == CF_ASSOCIATED)    
+      {
+        m_stateCf = state;
+        NS_LOG_INFO ("CAL-->ASSOCIATED (C)");
+      } 
+  else if (state == CF_ASSOCIATION_RELEASE_PENDING)    
+      {
+        m_stateCf = state;
+        NS_LOG_INFO ("CAL-->ASSOCIATION_RELEASE_PENDING (C)");
+      } 
+  else
+    {
+      NS_LOG_INFO ("Error: No change of stare AL");
+    }
+}
+
+int 
+CosemAlClient::GetStateCf ()
+{
+  return m_stateCf;
+}
+	
+int 
+CosemAlClient::GetTypeService ()
+{
+  return m_typeService;
+}
+
+void 
+CosemAlClient::SetTypeService (int typeService)
+{
+  m_typeService = typeService;
+}
+	
+int 
+CosemAlClient::GetTypeGet ()
+{
+  return m_typeGet;
+}
+
+void 
+CosemAlClient::SetTypeGet (int typeGet)
+{
+  m_typeGet = typeGet;
+}
+ 
 void 
 CosemAlClient::SetUdpport (uint16_t udpPort)
 {

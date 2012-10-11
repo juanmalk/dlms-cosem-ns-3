@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2012 JMALK
+ * Copyright (c) 2012 Uniandes (unregistered)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -19,11 +19,11 @@
  */
 
 #include "ns3/log.h"
-#include "ns3/ipv4-address.h"
+#include "ns3/node.h"
+#include "ns3/simulator.h"
 #include "cosem-al-client.h"
 #include "cosem-ap-server.h"
 #include "cosem-ap-client.h"
-
 
 namespace ns3 {
 
@@ -56,9 +56,19 @@ CosemApClient::~CosemApClient ()
 }
 
 void 
-CosemApClient::Recv (int nbytes, int typeAcseService, int typeGet, int typeService)
+CosemApClient::Recv (int nbytes, int typeAcseService, int typeGet, int typeService, Ptr<CosemApServer> cosemApServer)
 {
-  NS_LOG_INFO ("CAL-->OPEN.cnf(Ok) (S)");
+  // COSEM-OPEN.ind
+  if ((typeAcseService == OPEN) && (typeService == CONFIRM))
+    { 
+      NS_LOG_INFO ("CAL-->OPEN.cnf(Ok) (S)");
+
+      // Save the AA successfully established: (wPort, Ptr<CosemApServer> cosemApServer)
+      SaveActiveAa (cosemApServer);
+
+      // Event: Invoke the COSEM-GET.req service-Start the phase II: Communication Data
+      Simulator::Schedule (Seconds (0.0), &CosemAlClient::CosemXdlmsGet, m_cosemAlClient, GET_NORMAL, REQUEST, cosemApServer);
+    }
 }
 
 void 
@@ -66,8 +76,7 @@ CosemApClient::StartRequest ()
 {
   NS_LOG_FUNCTION_NOARGS ();
   NS_ASSERT (m_startRequestEvent.IsExpired ());
- //  uint32_t nSaps = m_containerSap.GetN ();      // Total number of Sap instances
-
+ 
   if (!m_typeRequesting)
     {
       NS_LOG_INFO ("Multicast Resquesting Mechanism");
@@ -79,15 +88,15 @@ CosemApClient::StartRequest ()
       if (m_itSap == m_containerSap.Begin ())
         {
           NS_LOG_INFO ("Sequential Resquesting Mechanism");
-          Ptr<Application> app = m_containerSap.Get (m_nSap);
-          Ptr<CosemApServer> sap = app->GetObject<CosemApServer> ();  // Retrieve the i Saps pointer stored in AppContainer 
-          m_itSap ++;  //Increase the value of "it" by one
-          m_nSap ++;   //Increases by one the counter of Saps
+          Ptr<Application> app = m_containerSap.Get (1);
+          m_curretCosemApServer = app->GetObject<CosemApServer> ();  // Retrieve the first Saps pointer stored in AppContainer 
+          m_itSap ++;  // Increase the value of "it" by one
+          m_nSap ++;   // Increase by one the counter of Saps
           /* 
            * Invoke the COSEM-OPEN.req service implemented in CosemClient_AL_CF	
            * in order to establish an AA with a remote server (sap)
            */
-          m_cosemAlClient->CosemAcseOpen (REQUEST, sap); 
+          m_cosemAlClient->CosemAcseOpen (REQUEST, m_curretCosemApServer); 
         }
       else 
         {
@@ -126,13 +135,14 @@ CosemApClient::NextTimeRequestSm ()
 }
 
 void 
-CosemApClient::SaveActiveAa (uint16_t dstWport, Ptr<CosemApServer> sap)
+CosemApClient::SaveActiveAa (Ptr<CosemApServer> cosemApServer)
 {
-  m_activeAa[dstWport] = sap;
+  uint16_t dstWport = cosemApServer->GetWport ();
+  m_activeAa[dstWport] = cosemApServer;
 }
 	
 void 
-CosemApClient::RemoveActiveAa (Ptr<CosemApServer> sap)
+CosemApClient::RemoveActiveAa (Ptr<CosemApServer> cosemApServer)
 {
   /*// Find the wPort of the current SAP
   m_it = activeAa.find(sap->get_cs_al_cf()->get_cwS()->get_dst_wport(sap));
@@ -218,6 +228,18 @@ CosemApClient::SetApplicationContainerSap (ApplicationContainer containerSap)
 }
 
 void 
+CosemApClient::SetCurretCosemApServer (Ptr<CosemApServer> curretCosemApServer)
+{
+  m_curretCosemApServer = curretCosemApServer;
+}
+
+Ptr<CosemApServer> 
+CosemApClient::GetCurretCosemApServer ()
+{
+  return m_curretCosemApServer;
+}
+
+void 
 CosemApClient::SetTypeRequesting (bool typeRequesting)
 {
   m_typeRequesting = typeRequesting;
@@ -229,6 +251,12 @@ CosemApClient::GetTypeRequesting ()
   return m_typeRequesting;
 }
 
+Ptr<Node>
+CosemApClient::GetNode () const
+{
+  Ptr<Node> node = Application::GetNode ();
+  return node;
+}
 
 void
 CosemApClient::DoDispose (void)
@@ -243,7 +271,7 @@ CosemApClient::StartApplication (void)
   // Create the StartRequest Event
   m_startRequestEvent = Simulator::Schedule (Seconds (0.0), &CosemApClient::StartRequest, this);
   // Set the iterator at the begining of the container
-  m_itSap = m_containerSap.Begin ();
+  m_itSap = m_containerSap.Begin ();   
 }
 
 void 

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2012 JMALK
+ * Copyright (c) 2012 Uniandes (unregistered)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -22,10 +22,14 @@
 #define COSEM_AL_SERVER_H
 
 #include "ns3/application.h"
-#include "ns3/simulator.h"
+#include "ns3/address.h"
+#include "ns3/application-container.h"
+#include "ns3/event-id.h"
+#include "ns3/ptr.h"
 
 namespace ns3 {
 
+class Node;
 class CosemAlServer;
 
 /** 
@@ -42,14 +46,17 @@ public:
  
   virtual ~CosemApServer ();
 
-  // Called when new packet received
-  void Recv (int nbytes);
+  // Called when new message received
+  void Recv (int nbytes, int typeAcseService, int typeGet, int typeService);
+
+  // Retrieve the node where the CAP is attached
+  Ptr<Node> GetNode () const;
 
   //Set & GET the pointer to a CosemServer_AL_CF object
   void SetCosemAlServer (Ptr<CosemAlServer> cosemAlServer);
   Ptr<CosemAlServer> GetCosemAlServer ();
 
-  // Set & GET the pointer to a CosemAlClient object
+  // Set & GET the wPort
   void SetWport (uint16_t wPort);
   uint16_t GetWport ();
 
@@ -66,25 +73,26 @@ public:
 
   // Type of COSEM-GET service
   enum typeGet { GET_NORMAL, GET_WITH_LIST, GET_ONE_BLOCK, GET_LAST_BLOCK }; 
+ 
+  // ACSE services
+  enum typeAcseService { OPEN, RELEASE };
 	
 protected:
 
   virtual void DoDispose (void);
-
-  Ptr<CosemAlServer> m_cosemAlServer;
-
-  uint16_t m_wPort;  // SAP Wrapper Port Number (unique id)
-
-  uint16_t m_udpPort;  // Udp port
-
-  Address m_localAddress;  // Local Ip address
  
 private:
 
-  virtual void StartApplication (void);
+  Ptr<CosemAlServer> m_cosemAlServer;
+  uint16_t m_wPort;  // SAP Wrapper Port Number (unique id)
+  uint16_t m_udpPort;  // Udp port
+  Address m_localAddress;  // Local Ip address
 
+  virtual void StartApplication (void);
   virtual void StopApplication (void);
 
+  // Helpers parameters
+  //EventId m_invokeCosemService; 
 };
 
 } // namespace ns3

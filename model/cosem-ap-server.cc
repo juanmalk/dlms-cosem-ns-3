@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2012 JMALK
+ * Copyright (c) 2012 Uniandes (unregistered)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -19,6 +19,8 @@
  */
 
 #include "ns3/log.h"
+#include "ns3/node.h"
+#include "ns3/simulator.h"
 #include "cosem-al-server.h"
 #include "cosem-ap-server.h"
 
@@ -50,9 +52,22 @@ CosemApServer::~CosemApServer ()
 }
 
 void 
-CosemApServer::Recv (int nbytes)
+CosemApServer::Recv (int nbytes, int typeAcseService, int typeGet, int typeService)
 {
+  // COSEM-OPEN.cnf
+  if ((typeAcseService == OPEN) && (typeService == INDICATION))
+    { 
+      NS_LOG_INFO ("SAL-->OPEN.ind (S)");
+      // Event: Invoke the COSEM-OPEN.res service
+      Simulator::Schedule (Seconds (0.0), &CosemAlServer::CosemAcseOpen, m_cosemAlServer, RESPONSE);
+    }
+}
 
+Ptr<Node>
+CosemApServer::GetNode () const
+{
+  Ptr<Node> node = Application::GetNode ();
+  return node;
 }
 
 void 

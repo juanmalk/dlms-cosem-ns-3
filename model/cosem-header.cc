@@ -23,7 +23,126 @@
  
 namespace ns3 {
 
-NS_LOG_COMPONENT_DEFINE ("CosemHeader");
+NS_LOG_COMPONENT_DEFINE ("TypeAPDU");
+
+/*-----------------------------------------------------------------------------
+ *  APDU TYPE HEADER
+ *-----------------------------------------------------------------------------
+ */
+NS_OBJECT_ENSURE_REGISTERED (TypeAPDU);
+
+TypeId 
+TypeAPDU::GetTypeId (void)
+{
+  static TypeId tid = TypeId ("ns3::TypeAPDU")
+    .SetParent<Header> ()
+    .AddConstructor<TypeAPDU> ()
+    ;
+  return tid;
+}
+
+TypeAPDU::TypeAPDU ()
+{
+  m_type = AARQ;
+}
+
+TypeAPDU::~TypeAPDU()
+{
+
+}
+
+TypeId 
+TypeAPDU::GetInstanceTypeId (void) const
+{
+  return GetTypeId ();
+}
+
+uint32_t 
+TypeAPDU::GetSerializedSize (void) const
+{
+  return 1;
+}
+ 
+void 
+TypeAPDU::Serialize (Buffer::Iterator start) const
+{
+  start.WriteU8 ((uint8_t) m_type);
+}
+
+uint32_t 
+TypeAPDU::Deserialize (Buffer::Iterator start)
+{
+  Buffer::Iterator i = start;
+  uint8_t type = i.ReadU8 ();
+  switch (type)
+   {
+    case AARQ: 
+    case AARE:
+    case RLRQ:
+    case RLRE: 
+    case GETRQ_N: 
+    case GETRES_N:
+      {
+        m_type = (ApduType) type;
+        break;
+      }
+    default:
+      NS_LOG_INFO ("ApduType not valid!");  
+   }  
+  return GetSerializedSize ();
+}
+
+void 
+TypeAPDU::Print (std::ostream &os) const
+{  
+ switch (m_type)
+   {
+    case AARQ:
+      {
+        os << "AARQ";
+        break;
+      } 
+    case AARE:
+      {
+        os << "AARE";
+        break;
+      }
+    case RLRQ:
+      {
+        os << "RLRQ";
+        break;
+      }
+    case RLRE: 
+      {
+        os << "RLRE";
+        break;
+      }
+    case GETRQ_N: 
+      {
+        os << "GETRQ_N";
+        break;
+      }
+    case GETRES_N:
+      {
+        os << "GETRES_N";
+        break;
+      }
+    default:
+      os << "UNKNOWN_TYPE";
+   }  
+}
+
+void 
+TypeAPDU::SetApduType (ApduType type)
+{
+  m_type = type;
+}
+
+ApduType
+TypeAPDU::GetApduType () const 
+{
+  return m_type;
+}
 
 /*-----------------------------------------------------------------------------
  *  AARQ APDU
@@ -43,15 +162,15 @@ CosemAarqHeader::GetTypeId (void)
 
 CosemAarqHeader::CosemAarqHeader ()
 {
-  m_idApdu = PT_AARQ ;
+  m_idApdu = AARQ ;
   m_protocolVersion = 0 ;
   m_applicationContextName = 0;
   m_dedicatedKey = 0;
   m_responseAllowed = true;
   m_proposedQualityOfService = 0;  	
-  m_proposedDlmsVersionNumber = 6;
-  m_proposedConformance = 0x001010;   // {0x001010}, Based on the example in Annex C IEC 62056-53	
-  m_clientMaxReceivePduSize = 0x4B0;  // Client_Max_Receive_PDU_Size,{0x4B0}:1200 bytes
+  m_proposedDlmsVersionNumber = 0;
+  m_proposedConformance = 0;   	
+  m_clientMaxReceivePduSize = 0; 
 }
 
 CosemAarqHeader::~CosemAarqHeader ()
@@ -140,7 +259,7 @@ CosemAarqHeader::GetProtocolVersion (void) const
 }
 
 void
-CosemAarqHeader::SetPpplicationContextName (uint64_t applicationContextName)
+CosemAarqHeader::SetApplicationContextName (uint64_t applicationContextName)
 {
   m_applicationContextName = applicationContextName;
 }
@@ -241,7 +360,7 @@ CosemAareHeader::GetTypeId (void)
 
 CosemAareHeader::CosemAareHeader ()
 {
-  m_idApdu = PT_AARE;
+  m_idApdu = AARE;
   m_protocolVersion = 0;
   m_applicationContextName = 0;
   m_result = 0; // Result of the request AA, {0, accepted}
@@ -456,7 +575,7 @@ CosemRlrqHeader::GetTypeId (void)
 
 CosemRlrqHeader::CosemRlrqHeader ()
 {
-  m_idApdu = PT_RLRQ ;
+  m_idApdu = RLRQ ;
   m_reason = 0;
   m_dedicatedKey = 0;
   m_responseAllowed = true;
@@ -637,7 +756,7 @@ CosemRlreHeader::GetTypeId (void)
 
 CosemRlreHeader::CosemRlreHeader ()
 {
-  m_idApdu = PT_RLRE;
+  m_idApdu = RLRE;
   m_reason = 0;
   m_negotiatedQualityOfService = 0;  
   m_negotiatedDlmsVersionNumber = 6; 
@@ -804,7 +923,7 @@ CosemGetRequestNormalHeader::GetTypeId (void)
 
 CosemGetRequestNormalHeader::CosemGetRequestNormalHeader ()
 {
-  m_idApdu = PT_GETRQ_N;
+  m_idApdu = GETRQ_N;
   m_typeGetRequest = 1;   // Normal
   m_invokeIdAndPriority = 0x02; // 0000 0010 (invoke_id {0b0000}),service_class= 1 (confirmed) priority level ({normal})) 
   m_classId = 0X03;  // Class Register
@@ -955,7 +1074,7 @@ CosemGetResponseNormalHeader::GetTypeId (void)
 
 CosemGetResponseNormalHeader::CosemGetResponseNormalHeader ()
 {
-  m_idApdu = PT_GETRES_N;
+  m_idApdu = GETRES_N;
   m_typeGetResponse = 1;   // Normal
   m_invokeIdAndPriority = 0x02; // 0000 0010 (invoke_id {0b0000}),service_class= 1 (confirmed) priority level ({normal})) 
   m_data = 0; 
@@ -1070,6 +1189,126 @@ uint8_t
 CosemGetResponseNormalHeader::GetDataAccessResult (void) const
 {
   return m_dataAccessResult;
+}
+
+/*-----------------------------------------------------------------------------
+ *  WRAPPER PDU
+ *-----------------------------------------------------------------------------
+ */
+
+NS_OBJECT_ENSURE_REGISTERED (CosemWrapperHeader);
+
+TypeId 
+CosemWrapperHeader::GetTypeId (void)
+{
+  static TypeId tid = TypeId ("ns3::CosemWrapperHeader")
+    .SetParent<Header> ()
+    .AddConstructor<CosemWrapperHeader> ()
+    ;
+  return tid;
+}
+
+CosemWrapperHeader::CosemWrapperHeader ()
+{
+  m_version = 0x0001;  
+  m_srcwPort = 0;
+  m_dstwPort = 0; 
+  m_length = 0;  
+}
+
+CosemWrapperHeader::~CosemWrapperHeader ()
+{
+
+}
+
+TypeId 
+CosemWrapperHeader::GetInstanceTypeId (void) const
+{
+  return GetTypeId ();
+}
+
+uint32_t 
+CosemWrapperHeader::GetSerializedSize (void) const
+{
+  return 8;
+}
+ 
+void 
+CosemWrapperHeader::Serialize (Buffer::Iterator start) const
+{
+  start.WriteHtonU16 (m_version);
+  start.WriteHtonU16 (m_srcwPort);
+  start.WriteHtonU16 (m_dstwPort);
+  start.WriteHtonU16 (m_length);
+}
+
+uint32_t 
+CosemWrapperHeader::Deserialize (Buffer::Iterator start)
+{
+  Buffer::Iterator i = start; 
+  m_version = i.ReadNtohU16 (); 
+  m_srcwPort = i.ReadNtohU16 (); 
+  m_dstwPort = i.ReadNtohU16 (); 
+  m_length = i.ReadNtohU16 ();  
+
+  return GetSerializedSize ();
+}
+
+void 
+CosemWrapperHeader::Print (std::ostream &os) const
+{
+  os << "Version of Wrapper Sub-layer " << m_version
+     << "Source wrapper port number " << m_srcwPort
+     << "Destination wrapper port number " << m_dstwPort
+     << "Length of the APDU transported " << m_length; 
+}
+
+void 
+CosemWrapperHeader::SetVersion (uint16_t version)
+{
+  m_version = version;
+}
+
+uint16_t
+CosemWrapperHeader::GetVersion (void) const
+{
+  return m_version;
+}
+
+void
+CosemWrapperHeader::SetSrcwPort (uint16_t srcwPort)
+{
+  m_srcwPort = srcwPort;
+}
+
+uint16_t 
+CosemWrapperHeader::GetSrcwPort (void) const
+{
+  return m_srcwPort;
+}
+
+void
+CosemWrapperHeader::SetDstwPort (uint16_t dstwPort)
+{
+  m_dstwPort = dstwPort;
+}
+
+uint16_t 
+CosemWrapperHeader::GetDstwPort (void) const
+{
+  return m_dstwPort;
+}
+
+void
+CosemWrapperHeader::SetLength (uint16_t length)
+{
+  m_length = length;
+}
+ 
+uint16_t
+CosemWrapperHeader::GetLength (void) const
+{
+  return m_length;
 }
 
 } // namespace ns3

@@ -3,7 +3,6 @@
 def build(bld):
     module = bld.create_ns3_module('cosem', ['applications', 'internet'])
     module.source = [
-        'model/cosem-al.cc',
         'model/cosem-al-server.cc',
         'model/cosem-ap-server.cc',
         'model/cosem-al-client.cc',
@@ -21,7 +20,6 @@ def build(bld):
     headers = bld.new_task_gen(features=['ns3header'])
     headers.module = 'cosem'
     headers.source = [
-        'model/cosem-al.h',
         'model/cosem-al-server.h',
         'model/cosem-ap-server.h',
         'model/cosem-al-client.h',

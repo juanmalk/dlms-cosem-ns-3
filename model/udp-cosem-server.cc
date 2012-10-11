@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2012 JMALK
+ * Copyright (c) 2012 Uniandes (unregistered)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -18,10 +18,15 @@
  * Author: Juanmalk <jm.aranda121@uniandes.edu.co> 
  */
 
-
 #include "ns3/log.h"
 #include "ns3/socket.h"
 #include "ns3/packet.h"
+#include "ns3/ipv4-address.h"
+#include "ns3/ipv4-header.h"
+#include "ns3/inet-socket-address.h"
+#include "ns3/socket-factory.h"
+#include "ns3/simulator.h"
+#include "cosem-header.h"
 #include "cosem-al-server.h"
 #include "cosem-ap-server.h"
 #include "udp-cosem-server.h"
@@ -48,6 +53,7 @@ UdpCosemWrapperServer::UdpCosemWrapperServer ()
   m_wPortSap = 0;
   m_wPortCap = 0;
   m_udpPort = 4056;
+  m_adaptCosemUdpserviceEvent = EventId ();
 }
 
 UdpCosemWrapperServer::~UdpCosemWrapperServer ()
@@ -56,15 +62,74 @@ UdpCosemWrapperServer::~UdpCosemWrapperServer ()
 }
 
 void 
+UdpCosemWrapperServer::Init ()
+{
+  // Create the socket
+  if (m_socket == 0)
+    {
+      TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
+      m_socket = Socket::CreateSocket (m_cosemAlServer->GetCosemApServer ()->GetNode (), tid);
+      InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), m_udpPort);
+      m_socket->Bind (local);
+      NS_LOG_INFO ("UDPSocketServer created with Ip " << local);
+      // Set the callback method ("Adapt" Recv Udp funtion to UDP-DATA.ind (APDU))
+      m_socket->SetRecvCallback (MakeCallback (&UdpCosemWrapperServer::Recv, this));
+    }
+}
+
+void 
 UdpCosemWrapperServer::Recv (Ptr<Socket> socket)
 {
+  NS_LOG_FUNCTION (this << socket);
 
+  Ptr<Packet> packet;
+  Address from;
+  CosemWrapperHeader hdr;
+  Ipv4Header iph;
+  // Retreive the packet sent by the Remote Client and copy the Wrapper Header from the packet
+  packet = socket->RecvFrom (from);  
+  packet->RemoveHeader (hdr);
+  // Retreive the wPort of the Remote Client 
+  m_wPortCap = hdr.GetSrcwPort ();
+  // Retreive Remote Ip address
+  packet->RemoveHeader (iph);
+  m_remoteAddress = Address (iph.GetSource ());
+  // Adapt RECEIVE UDP function to UDP-DATA.ind (APDU) service
+  m_adaptCosemUdpserviceEvent = Simulator::Schedule (Seconds (0.0), &UdpCosemWrapperServer::AdaptCosemUdpServices, this, INDICATION, packet);
 }
 
 void
-UdpCosemWrapperServer::Send (Ptr<Packet> packet, Ptr<CosemApServer> cosemApServer)
+UdpCosemWrapperServer::Send (Ptr<Packet> packet)
 {
+  // Add Wrapper header
+  CosemWrapperHeader hdr;
+  hdr.SetSrcwPort (m_wPortSap); 
+  hdr.SetDstwPort (m_wPortCap); 
+  hdr.SetLength (packet->GetSize ()); 
+  packet->AddHeader (hdr); 
+  // Adapt UDP-DATA.req (APDU) service to SEND UDP function
+  m_adaptCosemUdpserviceEvent = Simulator::Schedule (Seconds (0.0), &UdpCosemWrapperServer::AdaptCosemUdpServices, this, REQUEST, packet);
+}
 
+void 
+UdpCosemWrapperServer::AdaptCosemUdpServices (int type_service, Ptr<Packet> packet)
+{
+  NS_ASSERT (m_adaptCosemUdpserviceEvent.IsExpired ());
+  Simulator::Cancel (m_adaptCosemUdpserviceEvent);
+
+  if (type_service == INDICATION)
+    {
+      // Pass the information to the SAL ("inoke" UDP-DATA.ind (APDU))
+      NS_LOG_INFO ("CW-S --> RECEIVE" << m_wPortCap << "--> UDP-DATA.ind (APDU)");
+      m_cosemAlServer->RecvCosemApduUdp (packet);
+    }
+
+  if (type_service == REQUEST)
+    {
+      // Call SEND Udp function (through UdpSocket)
+      m_socket->SendTo (packet, 0, m_remoteAddress);
+      NS_LOG_INFO ("CW-C --> UDP-DATA.req (APDU) --> SEND");
+    }
 }
 
 void
@@ -121,6 +186,7 @@ UdpCosemWrapperServer::GetUdpport ()
   return m_udpPort;
 }
 
+
 void 
 UdpCosemWrapperServer::SetLocalAddress (Address ip)
 {
@@ -136,13 +202,13 @@ UdpCosemWrapperServer::GetLocalAddress ()
 void 
 UdpCosemWrapperServer::SetRemoteAddress (Address ip)
 {
-  m_remoteAddress = ip;
+  m_localAddress = ip;
 }
 
 Address
 UdpCosemWrapperServer::GetRemoteAddress ()
 {
-  return m_remoteAddress;
+  return m_localAddress;
 }
 
 } // namespace ns3

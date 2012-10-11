@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2012 JMALK
+ * Copyright (c) 2012 Uniandes (unregistered)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -22,9 +22,9 @@
 #define COSEM_AL_CLIENT_H
 
 #include <map> 
-#include "cosem-al.h"
-#include "ns3/ipv4-address.h"
-#include "ns3/simulator.h"
+#include "ns3/object.h"
+#include "ns3/event-id.h"
+#include "ns3/ptr.h"
 
 namespace ns3 {
 
@@ -40,7 +40,7 @@ class UdpCosemWrapperClient;
  *
  */
 
-class CosemAlClient : public CosemAl
+class CosemAlClient : public Object
 {
 public:
   static TypeId GetTypeId (void);
@@ -50,19 +50,19 @@ public:
   virtual ~CosemAlClient();
 
   // COSEM-OPEN service of ACSE, implemented by the derived class
-  void CosemAcseOpen (int typeService, Ptr<CosemApServer> sap);
+  void CosemAcseOpen (int typeService, Ptr<CosemApServer> cosemApServer);
 	
   // COSEM-RELEASE service of ACSE, implemented by the derived class
-  void CosemAcseRelease (int typeService, Ptr<CosemApServer> sap);
+  void CosemAcseRelease (int typeService, Ptr<CosemApServer> cosemApServer);
 	
   // COSEM-GET service of xDLMS_ASE, implemented by the derived class
-  void CosemXdlmsGet (int typeGet, int typeService, Ptr<CosemApServer> sap);
+  void CosemXdlmsGet (int typeGet, int typeService, Ptr<CosemApServer> cosemApServer);
 
-  // Construct the APDUs of ACSE services (AARQ, AARE, RLRQ, RLRE)
-  virtual void CosemAcseApdu (int typeAcseService, int typeService, Ptr<CosemApServer> sap);
+  // Construct the APDUs of ACSE services (AARQ, RLRQ)
+  void CosemAcseApdu (int typeAcseService, int typeService, Ptr<CosemApServer> cosemApServer);
 	
-  // Construct the APDUs of xDLMS_ASE services(GET-REQUEST, GET-RESPONSE)
-  virtual void CosemXdlmsApdu (int typeGet, int typeService, Ptr<CosemApServer> sap);
+  // Construct the APDUs of xDLMS_ASE services(GET-REQUEST)
+  void CosemXdlmsApdu (int typeGet, int typeService, Ptr<CosemApServer> cosemApServer);
 	
   // Received the indication/confirmation of a TCP-DATA resquest
   void RecvCosemApduTcp (int tcpsService, Ptr<Packet> packet);
@@ -70,18 +70,36 @@ public:
   // Received the indication/confirmation of a UDP-DATA resquest
   void RecvCosemApduUdp (Ptr<Packet> packet);
 
-  // Set & GET the pointer to a CosemAlServer object
+  // Send the APDU to the sub-layer Wrapper
+  void sendApdu (Ptr<Packet> packet, Ptr<CosemApServer> cosemApServer);
+
+  // Set & Get the pointer to a CosemAlServer object
   void SetCosemApClient (Ptr<CosemApClient> cosemApClient);
   Ptr<CosemApClient> GetCosemApClient ();
  
-  // Set & GET the pointer to a CosemWrapperClient object
+  // Set & Get the pointer to a CosemWrapperClient object
   void SetCosemWrapperClient (Ptr<UdpCosemWrapperClient> cosemWrapperClient);
   Ptr<UdpCosemWrapperClient> GetCosemWrapperClient ();
+
+  // Set & Get the state of CF
+  void SetStateCf (int state);
+  int GetStateCf ();
+	
+  // Set & Get the type of service
+  void SetTypeService (int typeService);
+  int GetTypeService ();
+
+  // Set & Get the type of COSEM-GET service
+  void SetTypeGet (int typeGet); 
+  int GetTypeGet ();
 
   // Set & GET the Udp Port listening by the CAL
   void SetUdpport (uint16_t udpPort);
   uint16_t GetUdpport ();
-	
+
+  // States machine of the Control Function
+  enum stateCf { CF_INACTIVE, CF_IDLE, CF_ASSOCIATION_PENDING, CF_ASSOCIATED, CF_ASSOCIATION_RELEASE_PENDING };
+
   // Type of services
   enum typeService { REQUEST, INDICATION, RESPONSE, CONFIRM };
 	
@@ -102,7 +120,15 @@ protected:
   // A pointer to a Wrapper Client object
   Ptr<UdpCosemWrapperClient> m_cosemWrapperClient;
 
+  int m_typeService;  // Type of service
+  int m_typeGet;   // Type of COSEM-GET service
+  int m_stateCf;  // State of CF
   uint16_t m_udpPort;  // Udp port
+ 
+  // Helpers parameters
+  EventId m_changeStateEvent;
+  EventId m_sendApduEvent;
+  EventId m_invokeCosemServiceEvent;
 
 };
 

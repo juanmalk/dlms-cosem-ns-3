@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2012 JMALK
+ * Copyright (c) 2012 Uniandes (unregistered)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -22,7 +22,9 @@
 #define UDP_COSEM_CLIENT_H
 
 #include "ns3/object.h"
-#include "ns3/simulator.h"
+#include "ns3/address.h"
+#include "ns3/event-id.h"
+#include "ns3/ptr.h"
 
 namespace ns3 {
 
@@ -52,6 +54,9 @@ public:
   // Called when new packet is ready to be send
   void Send (Ptr<Packet> packet, Ptr<CosemApServer> cosemApServer);
 
+  // Call UDP services
+  void AdaptCosemUdpServices (int type_service, Ptr<Packet> packet);
+
   // Set & GET the pointer to a CosemAlClient object
   void SetCosemAlClient (Ptr<CosemAlClient> cosemAlClient);
   Ptr<CosemAlClient> GetCosemAlClient ();
@@ -65,6 +70,9 @@ public:
 
   // Return the wPort number of the CAP connected to the CAL
   uint16_t GetwPortClient ();
+
+  // Return the wPort number of the remote SAP
+  uint16_t GetwPortServer ();
 
   // Set & GET the Udp Port listening by the CAL
   void SetUdpport (uint16_t udpPort);
@@ -87,13 +95,14 @@ private:
 
   Ptr<CosemAlClient> m_cosemAlClient; 
 
-  uint16_t m_wPortCap;  // Wrapper Port Number assigned to the CAP
-
+  uint16_t m_wPortCap;  // Wrapper Port Number assigned to the CAP (Counter)
+  uint16_t m_wPortSap;  // Wrapper Port Number assigned to the remote SAP currently being attended
   uint16_t m_udpPort;  // Udp port
-
   Address m_localAddress;  // Local Ip address 
-
   Address m_remoteAddress;  // Ip Address of the remote SAP
+
+  // Helpers parameters
+  EventId m_adaptCosemUdpserviceEvent;
 
 };
 

@@ -25,6 +25,38 @@
 
 namespace ns3 {
 
+enum ApduType 
+{ 
+  AARQ = 1, 
+  AARE = 2,
+  RLRQ = 3, 
+  RLRE = 4, 
+  GETRQ_N = 5, 
+  GETRES_N = 6
+};
+
+class TypeAPDU : public Header
+{
+public:
+  TypeAPDU ();
+  virtual ~TypeAPDU ();
+
+  static TypeId GetTypeId (void);
+  virtual TypeId GetInstanceTypeId (void) const;
+  virtual uint32_t GetSerializedSize (void) const; 
+  virtual void Serialize (Buffer::Iterator start) const;
+  virtual uint32_t Deserialize (Buffer::Iterator start);
+  virtual void Print (std::ostream &os) const;
+
+  // Allow protocol-specific access to the header
+  void SetApduType (ApduType type);
+  ApduType GetApduType () const; 
+
+private:
+
+  ApduType m_type;
+};
+
 /*
  * COSEM, ACSE APDU: AARQ-APDU 
  */
@@ -47,7 +79,7 @@ public:
   uint8_t GetIdApdu (void) const;
   void SetProtocolVersion (uint8_t protocolVersion);
   uint8_t GetProtocolVersion (void) const;
-  void SetPpplicationContextName (uint64_t applicationContextName);
+  void SetApplicationContextName (uint64_t applicationContextName);
   uint64_t GetApplicationContextName (void) const;  
   
   void SetDedicatedKey (uint8_t dedicatedKey);
@@ -64,7 +96,7 @@ public:
   uint16_t GetClientMaxReceivePduSize (void) const;  
 
   // Type of packet
-  enum packetType { PT_AARQ, PT_AARE, PT_RLRQ, PT_RLRE, PT_GETRQ_N, PT_GETRES_N };
+  //enum packetType { PT_AARQ, PT_AARE, PT_RLRQ, PT_RLRE, PT_GETRQ_N, PT_GETRES_N };
   	
 private:
 
@@ -124,7 +156,7 @@ public:
   uint16_t GetVaaName (void) const;  
 
   // Type of packet
-  enum packetType { PT_AARQ, PT_AARE, PT_RLRQ, PT_RLRE, PT_GETRQ_N, PT_GETRES_N };
+  //enum packetType { PT_AARQ, PT_AARE, PT_RLRQ, PT_RLRE, PT_GETRQ_N, PT_GETRES_N };
   	
 private:
 
@@ -183,7 +215,7 @@ public:
   uint16_t GetClientMaxReceivePduSize (void) const;  
 
   // Type of packet
-  enum packetType { PT_AARQ, PT_AARE, PT_RLRQ, PT_RLRE, PT_GETRQ_N, PT_GETRES_N };
+  //enum packetType { PT_AARQ, PT_AARE, PT_RLRQ, PT_RLRE, PT_GETRQ_N, PT_GETRES_N };
   	
 private:
 
@@ -236,7 +268,7 @@ public:
   uint16_t GetVaaName (void) const;  
 
   // Type of packet
-  enum packetType { PT_AARQ, PT_AARE, PT_RLRQ, PT_RLRE, PT_GETRQ_N, PT_GETRES_N };
+  //enum packetType { PT_AARQ, PT_AARE, PT_RLRQ, PT_RLRE, PT_GETRQ_N, PT_GETRES_N };
   	
 private:
 
@@ -287,7 +319,7 @@ public:
   uint8_t GetAttributeId (void) const;  
 
   // Type of packet
-  enum packetType { PT_AARQ, PT_AARE, PT_RLRQ, PT_RLRE, PT_GETRQ_N, PT_GETRES_N };
+  //enum packetType { PT_AARQ, PT_AARE, PT_RLRQ, PT_RLRE, PT_GETRQ_N, PT_GETRES_N };
   	
 private:
 
@@ -332,7 +364,7 @@ public:
   uint8_t GetDataAccessResult (void) const;
 
   // Type of packet
-  enum packetType { PT_AARQ, PT_AARE, PT_RLRQ, PT_RLRE, PT_GETRQ_N, PT_GETRES_N };
+  //enum packetType { PT_AARQ, PT_AARE, PT_RLRQ, PT_RLRE, PT_GETRQ_N, PT_GETRES_N };
   	
 private:
 
@@ -343,6 +375,41 @@ private:
   // Result: Get-Data-Result (5B)
   uint32_t m_data;  // Requested Data [long-unsigned, Pages 22,105 of IEC 62056-62] (4B)
   uint8_t m_dataAccessResult;  // Data-access-result: Success (1B)
+};
+
+/**
+ * COSEM: WRAPPER sub-layer header
+ */
+
+class CosemWrapperHeader: public Header
+{
+public:
+  CosemWrapperHeader ();
+  virtual ~CosemWrapperHeader ();
+
+  static TypeId GetTypeId (void);
+  virtual TypeId GetInstanceTypeId (void) const;
+  virtual uint32_t GetSerializedSize (void) const; 
+  virtual void Serialize (Buffer::Iterator start) const;
+  virtual uint32_t Deserialize (Buffer::Iterator start);
+  virtual void Print (std::ostream &os) const;
+
+  // Allow protocol-specific access to the header
+  void SetVersion (uint16_t version); 
+  uint16_t GetVersion (void) const;  
+  void SetSrcwPort (uint16_t srcwPort); 
+  uint16_t GetSrcwPort (void) const;  
+  void SetDstwPort (uint16_t dstwPort); 
+  uint16_t GetDstwPort (void) const;  
+  void SetLength (uint16_t length); 
+  uint16_t GetLength (void) const;  
+
+private:
+
+  uint16_t m_version;  // Version of Wrapper Sub-layer (2B)
+  uint16_t m_srcwPort; // Source wrapper port number: Identify the sender AP (2B)
+  uint16_t m_dstwPort; // Destination wrapper port number: Identify the destination AP (2B)
+  uint16_t m_length;   // Length of the APDU transported (2B)
 };
 
 } // namespace ns3

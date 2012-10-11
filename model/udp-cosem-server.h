@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2012 JMALK
+ * Copyright (c) 2012 Uniandes (unregistered)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -22,7 +22,9 @@
 #define UDP_COSEM_SERVER_H
 
 #include "ns3/object.h"
-#include "ns3/simulator.h"
+#include "ns3/event-id.h"
+#include "ns3/address.h"
+#include "ns3/ptr.h"
 
 namespace ns3 {
 
@@ -45,11 +47,18 @@ public:
  
   virtual ~UdpCosemWrapperServer ();
 
+  // First Process
+  void Init ();
+
   // Recive ("read") the data from the socket and pass to the Cosem Application Layer
   void Recv (Ptr<Socket> socket);
 	
-  // Called when new packet is ready to be send
-  void Send (Ptr<Packet> packet, Ptr<CosemApServer> cosemApServer);
+  // Called when new packet is ready to be send (assuming only one SAP attached to the physical device)
+  void Send (Ptr<Packet> packet);
+
+
+  // Call UDP services
+  void AdaptCosemUdpServices (int type_service, Ptr<Packet> packet);
 
   // Set & GET the pointer to a CosemAlServer object
   void SetCosemAlServer (Ptr<CosemAlServer> cosemAlServer);
@@ -72,14 +81,13 @@ public:
   void SetUdpport (uint16_t udpPort);
   uint16_t GetUdpport ();
 
-  // Set & GET the local Ip address (Sap)
+  // Set & GET the local Ip address
   void SetLocalAddress (Address ip);
   Address GetLocalAddress ();
 
-  // Set the remote ip address (Cap)
-  void SetRemoteAddress (Address ip); 
+  // Set & GET the remote Ip address
+  void SetRemoteAddress (Address ip);
   Address GetRemoteAddress ();
-
 
   // Type of services
   enum typeService { REQUEST, INDICATION, CONFIRM };
@@ -90,14 +98,14 @@ private:
 
   Ptr<CosemAlServer> m_cosemAlServer; 
 
-  uint16_t m_wPortSap;  // Wrapper Port Number assigned to the SAP
+  uint16_t m_wPortSap;  // Wrapper Port Number assigned to the SAP (Counter)
   uint16_t m_wPortCap;  // Wrapper Port Number assigned to the remote CAP
-
   uint16_t m_udpPort;  // Udp port
+  Address m_localAddress;  // Local Ip address
+  Address m_remoteAddress;  // Remote Ip address
 
-  Address m_localAddress;  // Local Ip address 
-
-  Address m_remoteAddress;  // Ip Address of the remote SAP
+  // Helpers parameters
+  EventId m_adaptCosemUdpserviceEvent;
 
 };
 

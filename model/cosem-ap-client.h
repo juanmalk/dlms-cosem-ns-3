@@ -1,11 +1,21 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * cosem-ap-client.h
- * Implementation of the Class CosemApClient
- * Class that represents the COSEM Client Application Process
- * Created on: 26-Sept-2012
- * Modified on:
- * Original author: JUANMALK
+ * Copyright (c) 2012 Uniandes (unregistered)
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation;
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *
+ * Author: Juanmalk <jm.aranda121@uniandes.edu.co> 
  */
 
 #ifndef COSEM_AP_CLIENT_H
@@ -13,12 +23,14 @@
 
 #include <map>
 #include "ns3/application.h"
-#include "ns3/ipv4-address.h"
+#include "ns3/address.h"
 #include "ns3/application-container.h"
-#include "ns3/simulator.h"
+#include "ns3/event-id.h"
+#include "ns3/ptr.h"
 
 namespace ns3 {
 
+class Node;
 class CosemAlClient;
 class CosemApServer;
 
@@ -37,7 +49,7 @@ public:
   virtual ~CosemApClient ();
 
   // Called when new packet received
-  void Recv (int nbytes, int typeAcseService, int typeGet, int typeService);
+  void Recv (int nbytes, int typeAcseService, int typeGet, int typeService, Ptr<CosemApServer> cosemApServer);
 
   // Start the request of data to the SAP by the CAP
   void StartRequest ();
@@ -52,10 +64,10 @@ public:
   double NextTimeRequestSm ();
 
   // Store the AAs succesfully established
-  void SaveActiveAa (uint16_t dstWport, Ptr<CosemApServer> sap);
+  void SaveActiveAa (Ptr<CosemApServer> cosemApServer);
 	
   // Remove the AAs succesfully established before
-  void RemoveActiveAa (Ptr<CosemApServer> sap);
+  void RemoveActiveAa (Ptr<CosemApServer> cosemApServer);
 
   // Return the AAs succesfully established before
   Ptr<CosemApServer> ReturnActiveAa (uint16_t dstWport);
@@ -79,9 +91,16 @@ public:
   // Retrieve a reference of ApplicationContainer object (Sap)
   void SetApplicationContainerSap (ApplicationContainer containerSap);
 
+  // Set & Get the pointer of the Curret CosemApServer
+  void SetCurretCosemApServer (Ptr<CosemApServer> curretCosemApServer);
+  Ptr<CosemApServer> GetCurretCosemApServer();
+
   // Set & Get the type of requesting mechanism
   void SetTypeRequesting (bool typeRequesting);
   bool GetTypeRequesting ();
+
+  // Retrieve the node where the CAP is attached
+  Ptr<Node> GetNode () const;
 
   // Type of services
   enum typeService { REQUEST, INDICATION, RESPONSE, CONFIRM };
@@ -99,21 +118,17 @@ protected:
 private:
 
   Ptr<CosemAlClient> m_cosemAlClient;
-	
   uint16_t m_wPort;  // CAP Wrapper Port Number (unique id)
-
   uint16_t m_udpPort;  // Udp port
-
   Address m_localAddress;  // Local Ip address 
-
   ApplicationContainer m_containerSap; // Container of Sap in the scenario
-
+  Ptr<CosemApServer> m_curretCosemApServer;  // Pointer of the curret remote SAP 
   bool m_typeRequesting;  // Type Requesting mechanism: TRUE = MULTICASTING (simultaneous); FALSE = SEQUENCIAL (Round Robin style)
 
   // Map container to store the AAs succesfully established 
   std::map<uint16_t, Ptr<CosemApServer> > m_activeAa;	
   std::map<uint16_t, Ptr<CosemApServer> >::iterator m_it;
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 virtual void StartApplication (void);
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   virtual void StartApplication (void);
 
   virtual void StopApplication (void);
 
