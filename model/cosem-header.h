@@ -313,7 +313,7 @@ public:
   uint8_t GetInvokeIdAndPriority (void) const;
   void SetClassId (uint16_t classId); 
   uint16_t GetClassId (void) const;  
-  void SetInstanceId (uint16_t instanceId); 
+  void SetInstanceId (uint64_t instanceId); 
   uint64_t GetInstanceId (void) const;  
   void SetAttributeId (uint8_t attributeId); 
   uint8_t GetAttributeId (void) const;  
@@ -374,7 +374,7 @@ private:
 
   // Result: Get-Data-Result (5B)
   uint32_t m_data;  // Requested Data [long-unsigned, Pages 22,105 of IEC 62056-62] (4B)
-  uint8_t m_dataAccessResult;  // Data-access-result: Success (1B)
+  uint8_t m_dataAccessResult;  // Data-access-result (1B)
 };
 
 /**

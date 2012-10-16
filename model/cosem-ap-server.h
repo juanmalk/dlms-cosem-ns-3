@@ -30,6 +30,7 @@
 namespace ns3 {
 
 class Node;
+class Packet;
 class CosemAlServer;
 
 /** 
@@ -46,8 +47,8 @@ public:
  
   virtual ~CosemApServer ();
 
-  // Called when new message received
-  void Recv (int nbytes, int typeAcseService, int typeGet, int typeService);
+  // Called when new message received (for COSEM-GET services)
+  void Recv (int typeAcseService, int typeGet, int typeService, Ptr<Packet> packet);
 
   // Retrieve the node where the CAP is attached
   Ptr<Node> GetNode () const;
@@ -87,6 +88,7 @@ private:
   uint16_t m_wPort;  // SAP Wrapper Port Number (unique id)
   uint16_t m_udpPort;  // Udp port
   Address m_localAddress;  // Local Ip address
+  uint64_t m_reqData [3]; // Data requested by the remote CAP
 
   virtual void StartApplication (void);
   virtual void StopApplication (void);

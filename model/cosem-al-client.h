@@ -56,7 +56,7 @@ public:
   void CosemAcseRelease (int typeService, Ptr<CosemApServer> cosemApServer);
 	
   // COSEM-GET service of xDLMS_ASE, implemented by the derived class
-  void CosemXdlmsGet (int typeGet, int typeService, Ptr<CosemApServer> cosemApServer);
+  void CosemXdlmsGet (int typeGet, int typeService, Ptr<CosemApServer> cosemApServer, Ptr<Packet> packet);
 
   // Construct the APDUs of ACSE services (AARQ, RLRQ)
   void CosemAcseApdu (int typeAcseService, int typeService, Ptr<CosemApServer> cosemApServer);

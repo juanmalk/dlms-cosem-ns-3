@@ -1033,7 +1033,7 @@ CosemGetRequestNormalHeader::GetClassId (void) const
 }
  
 void 
-CosemGetRequestNormalHeader::SetInstanceId (uint16_t instanceId)
+CosemGetRequestNormalHeader::SetInstanceId (uint64_t instanceId)
 {
   m_instanceId = instanceId;
 }

@@ -21,6 +21,7 @@
 #include "ns3/log.h"
 #include "ns3/packet.h"
 #include "ns3/simulator.h"
+#include "ns3/nstime.h"
 #include "cosem-header.h"
 #include "cosem-al-server.h"
 #include "cosem-ap-server.h"
@@ -59,7 +60,7 @@ CosemAlServer::~CosemAlServer ()
 }
 
 void 
-CosemAlServer::CosemAcseOpen (int typeService)
+CosemAlServer::CosemAcseOpen (int typeService, Ptr<Packet> packet)
 {
   if (typeService == INDICATION)
     {
@@ -67,11 +68,12 @@ CosemAlServer::CosemAcseOpen (int typeService)
       Simulator::Cancel (m_invokeCosemServiceEvent);  // necessary?
 
       // Event: Inform to the SAP that a remote CAP has requested an establisment of an AA
-      Simulator::Schedule (Seconds (0.0), &CosemApServer::Recv, m_cosemApServer, -1, OPEN, -1, typeService); // Check if it really works?????
+      Simulator::Schedule (Seconds (0.0), &CosemApServer::Recv, m_cosemApServer, OPEN, -1, typeService, packet); // Check if it really works?????
     }
   else if (typeService == RESPONSE)
     {
       NS_LOG_INFO ("SAP-->OPEN.res (S)");
+      // Argument Ptr<Packet> packet not used
       // Event: Construct the AARE APDU of ACSE service 
       m_invokeCosemServiceEvent = Simulator::Schedule (Seconds (0.0), &CosemAlServer::CosemAcseApdu, this, OPEN, typeService);
     }
@@ -84,63 +86,142 @@ CosemAlServer::CosemAcseRelease (int typeService, Ptr<CosemApServer> sap)
 }
 	
 void 
-CosemAlServer::CosemXdlmsGet (int typeGet, int typeService, Ptr<CosemApServer> sap)
+CosemAlServer::CosemXdlmsGet (int typeGet, int typeService, Ptr<Packet> packet, uint32_t data, uint8_t invokeIdAndPriority)
 {
+  //.ind
+  if (typeService == INDICATION)
+    {  
+      if (typeGet == GET_NORMAL)
+        { 
+          NS_ASSERT (m_invokeCosemServiceEvent.IsExpired ());
+          Simulator::Cancel (m_invokeCosemServiceEvent);  // necessary?
 
+          // Event: Inform to the SAP that a remote CAP requested data
+          Simulator::Schedule (Seconds (0.0), &CosemApServer::Recv, m_cosemApServer, -1, typeGet, typeService, packet); 
+        }
+      else
+        {
+          NS_LOG_INFO ("Error: Undefined Cosem Get-Indication type (SAL)");     
+        }    
+    }
+  else
+    {
+      NS_LOG_INFO ("Error: Undefined indicaction Cosem service (SAL)");     
+    }
+
+  // .res
+  if (typeService == RESPONSE)
+    {  
+      if (typeGet == GET_NORMAL)
+        { 
+           NS_LOG_INFO ("SAP-->GET.res (NORMAL, Data) (S)");	
+
+          // Event: Construct the GET-RESPONSE APDU of xDLMS_ASE service
+          m_invokeCosemServiceEvent = Simulator::Schedule (Seconds (0.0), &CosemAlServer::CosemXdlmsApdu, this, typeGet, typeService, data, invokeIdAndPriority);
+
+        }
+      else
+        {
+          NS_LOG_INFO ("Error: Undefined Get-Response Type");     
+        }    
+    }
+  else
+    {
+      NS_LOG_INFO ("Error: Undefined Cosem-Get-Response service");     
+    }
 }
 
 void 
 CosemAlServer::CosemAcseApdu (int typeAcseService, int typeService)
 {
-
   NS_ASSERT (m_invokeCosemServiceEvent.IsExpired ());
   Simulator::Cancel (m_invokeCosemServiceEvent);  // necessary?
 
-  if ((typeAcseService == OPEN) && (typeService == RESPONSE))
-    {
-      // Build an xDLMS-Initiate.res PDU and an AARE APDU
-      CosemAareHeader hdr;
-      hdr.SetApplicationContextName (0);  // {N/A}Application Context Name (rules that govern th exchange-parameters)
-      hdr.SetResult (0);  // Result of the request AA, {0, accepted}
-      hdr.SetResultSourceDiagnostic (0);  // Result of a rejection of the a request AA, {0, null}
+   if (typeService == REQUEST)
+    { 
+      if (typeAcseService == OPEN)
+        {
+          // Build an xDLMS-Initiate.res PDU and an AARE APDU
+          CosemAareHeader hdr;
+          hdr.SetApplicationContextName (0);  // {N/A}Application Context Name (rules that govern th exchange-parameters)
+          hdr.SetResult (0);  // Result of the request AA, {0, accepted}
+          hdr.SetResultSourceDiagnostic (0);  // Result of a rejection of the a request AA, {0, null}
 
-      hdr.SetNegotiatedQualityOfService (0);  // Not used, {0, N/A}
-      hdr.SetNegotiatedDlmsVersionNumber (6);  // Version number, {6}
-      hdr.SetNegotiatedConformance (0x001010);  // {0x001010}, Based on the example in Annex C IEC 62056-53
-      hdr.SetServerMaxReceivePduSize (0x1F4);   // Server_Max_Receive_PDU_Size,{0x1F4}: 500 bytes
-      hdr.SetVaaName (0x0007);  // Dummy Value {0x0007}.Taken from page 98 IEC 62056-53
+          hdr.SetNegotiatedQualityOfService (0);  // Not used, {0, N/A}
+          hdr.SetNegotiatedDlmsVersionNumber (6);  // Version number, {6}
+          hdr.SetNegotiatedConformance (0x001010);  // {0x001010}, Based on the example in Annex C IEC 62056-53
+          hdr.SetServerMaxReceivePduSize (0x1F4);   // Server_Max_Receive_PDU_Size,{0x1F4}: 500 bytes
+          hdr.SetVaaName (0x0007);  // Dummy Value {0x0007}.Taken from page 98 IEC 62056-53
    
-      Ptr<Packet> packet = Create<Packet> (hdr.GetSerializedSize ()); // Create the AARQ APDU packet
-      packet->AddHeader (hdr); // Copy the header into the packet
+          Ptr<Packet> packet = Create<Packet> (hdr.GetSerializedSize ()); // Create the AARE APDU packet
+          packet->AddHeader (hdr); // Copy the header into the packet
 
-      TypeAPDU typeHdr;
-      typeHdr.SetApduType ((ApduType)hdr.GetIdApdu()); // Define the type of APDU
-      packet->AddHeader (typeHdr); // Copy the header into the packet
+          TypeAPDU typeHdr;
+          typeHdr.SetApduType ((ApduType)hdr.GetIdApdu()); // Define the type of APDU
+          packet->AddHeader (typeHdr); // Copy the header into the packet
     
-      NS_LOG_INFO ("SAL--> AARE APDU (S)");
+          NS_LOG_INFO ("SAL--> AARE APDU (S)");
 
-      // Event: Change the state of SAL to ASSOCIATED
-      m_changeStateEvent = Simulator::Schedule (Seconds (0.0), &CosemAlServer::SetStateCf, this, CF_ASSOCIATED);
+          // Event: Change the state of SAL to ASSOCIATED
+          m_changeStateEvent = Simulator::Schedule (Seconds (0.0), &CosemAlServer::SetStateCf, this, CF_ASSOCIATED);
 
-      // Event: Send the APDU to the sub-layer Wrapper (Invoke UDP-DATA.req (APDU))
-      double t = (8*hdr.GetSerializedSize ())/(500000) + 2.235e-3;
-      m_sendApduEvent = Simulator::Schedule (Seconds (t), &CosemAlServer::sendApdu, this, packet);
-    }
-  else if ((typeAcseService == RELEASE) && (typeService == RESPONSE))
-    {
-      // code     
+          // Event: Send the APDU to the sub-layer Wrapper (Invoke UDP-DATA.req (APDU))
+          double t = (8*hdr.GetSerializedSize ())/(500000) + 2.235e-3;
+          m_sendApduEvent = Simulator::Schedule (Seconds (t), &CosemAlServer::sendApdu, this, packet);
+        }
+      else if (typeAcseService == RELEASE)
+        {
+          // code    
+        }
+      else
+        {
+          NS_LOG_INFO ("Error: Undefined Cosem ACSE service (SAL)");     
+        }
     }
   else
     {
-      NS_LOG_INFO ("Error: Undefined request Cosem service");     
-
+      NS_LOG_INFO ("Error: Undefined request Cosem service (SAL)");     
     }
 }
 	
 void 
-CosemAlServer::CosemXdlmsApdu (int typeGet, int typeService)
+CosemAlServer::CosemXdlmsApdu (int typeGet, int typeService, uint32_t data, uint8_t invokeIdAndPriority)
 {
+  NS_ASSERT (m_invokeCosemServiceEvent.IsExpired ());
+  Simulator::Cancel (m_invokeCosemServiceEvent);  // necessary?
 
+  if (typeService == RESPONSE)
+    {  
+      if (typeGet == GET_NORMAL)
+        { 
+          // Build an GET-Response (Normal) APDU
+          CosemGetResponseNormalHeader hdr;
+          hdr.SetInvokeIdAndPriority (invokeIdAndPriority);
+          hdr.SetData (data); 
+          hdr.SetDataAccessResult (0); // Success {0} 
+
+          Ptr<Packet> packet = Create<Packet> (hdr.GetSerializedSize ()); // Create the GET-Response (Normal,Data) APDU packet
+          packet->AddHeader (hdr); // Copy the header into the packet
+
+          TypeAPDU typeHdr;
+          typeHdr.SetApduType ((ApduType)hdr.GetIdApdu()); // Define the type of APDU
+          packet->AddHeader (typeHdr); // Copy the header into the packet
+    
+          NS_LOG_INFO ("SAL--> GET-RES-NOR APDU (S)");
+
+          // Event: Send the APDU to the sub-layer Wrapper (Invoke UDP-DATA.req (APDU))
+          double t = (8*hdr.GetSerializedSize ())/(500000) + 2.235e-3;
+          m_sendApduEvent = Simulator::Schedule (Seconds (t), &CosemAlServer::sendApdu, this, packet);
+        }
+      else
+        {
+          NS_LOG_INFO ("Error: Undefined Get-Response Type");     
+        }    
+    }
+  else
+    {
+      NS_LOG_INFO ("Error: Undefined Cosem-Get-Response service");     
+    }
 }
 		
 void 
@@ -157,16 +238,19 @@ CosemAlServer::RecvCosemApduUdp (Ptr<Packet> packet)
   // Copy the Cosem APDU Header from the packet
   packet->RemoveHeader (typeHdr);
   ApduType typeAPDU = typeHdr.GetApduType (); 
- 
+
   if (typeAPDU == AARQ)
-    {
-      // Extract Associate.ind and xDLMS-Initiate.req parameters
-      CosemAarqHeader hdr;
-      packet->RemoveHeader (hdr);
+    {    
       // Event: Invoke COSEM-OPEN.ind service
-      m_invokeCosemServiceEvent = Simulator::Schedule (Seconds (0.0), &CosemAlServer::CosemAcseOpen, this, INDICATION);
+      m_invokeCosemServiceEvent = Simulator::Schedule (Seconds (0.0), &CosemAlServer::CosemAcseOpen, this, INDICATION, packet);
       // Event: Change the state of SAL to ASSOCIATION_PENDING
       m_changeStateEvent = Simulator::Schedule (Seconds (0.0), &CosemAlServer::SetStateCf, this, CF_ASSOCIATION_PENDING);
+    }
+
+  if (typeAPDU == GETRQ_N)
+    { 
+      // Event: Invoke the COSEM-GET.ind (NORMAL) service in order to indicate to the SAP that CAP requested data
+      m_invokeCosemServiceEvent = Simulator::Schedule (Seconds (0.0), &CosemAlServer::CosemXdlmsGet, this, GET_NORMAL, INDICATION, packet, 0, 0);
     }
 }
 

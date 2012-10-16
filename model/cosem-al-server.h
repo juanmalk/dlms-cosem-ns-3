@@ -46,19 +46,19 @@ public:
   virtual ~CosemAlServer ();
 
   // COSEM-OPEN service of ACSE, implemented by the derived class
-  void CosemAcseOpen (int typeService);
+  void CosemAcseOpen (int typeService, Ptr<Packet> packet);
 	
   // COSEM-RELEASE service of ACSE, implemented by the derived class
   void CosemAcseRelease (int typeService, Ptr<CosemApServer> sap);
 	
   // COSEM-GET service of xDLMS_ASE, implemented by the derived class
-  void CosemXdlmsGet (int typeGet, int typeService, Ptr<CosemApServer> sap);
+  void CosemXdlmsGet (int typeGet, int typeService, Ptr<Packet> packet, uint32_t data, uint8_t invokeIdAndPriority);
   
   // Construct the APDUs of ACSE services (AARE,RLRE)
   void CosemAcseApdu (int typeAcseService, int typeService);
 	
   // Construct the APDUs of xDLMS_ASE services (GET-RESPONSE)
-  void CosemXdlmsApdu (int typeGet, int typeService);
+  void CosemXdlmsApdu (int typeGet, int typeService, uint32_t data, uint8_t invokeIdAndPriority);
 	
   // Received the indication/confirmation of a TCP-DATA resquest 
   void RecvCosemApduTcp (int tcpsService, Ptr<Packet> packet);

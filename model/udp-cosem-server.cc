@@ -26,6 +26,7 @@
 #include "ns3/inet-socket-address.h"
 #include "ns3/socket-factory.h"
 #include "ns3/simulator.h"
+#include "ns3/nstime.h"
 #include "cosem-header.h"
 #include "cosem-al-server.h"
 #include "cosem-ap-server.h"

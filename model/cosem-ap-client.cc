@@ -20,7 +20,10 @@
 
 #include "ns3/log.h"
 #include "ns3/node.h"
+#include "ns3/packet.h"
 #include "ns3/simulator.h"
+#include "ns3/nstime.h"
+#include "cosem-header.h"
 #include "cosem-al-client.h"
 #include "cosem-ap-server.h"
 #include "cosem-ap-client.h"
@@ -46,8 +49,8 @@ CosemApClient::CosemApClient ()
   m_wPort = 0;
   m_udpPort = 0;
   m_startRequestEvent = EventId ();
-  m_typeRequesting = 0;
-  m_nSap = 1;
+  m_typeRequesting = false;
+  m_nSap = 0;
 }
 
 CosemApClient::~CosemApClient ()
@@ -56,9 +59,9 @@ CosemApClient::~CosemApClient ()
 }
 
 void 
-CosemApClient::Recv (int nbytes, int typeAcseService, int typeGet, int typeService, Ptr<CosemApServer> cosemApServer)
+CosemApClient::Recv (Ptr<Packet> packet, int typeAcseService, int typeGet, int typeService, Ptr<CosemApServer> cosemApServer)
 {
-  // COSEM-OPEN.ind
+  // COSEM-OPEN.cnf
   if ((typeAcseService == OPEN) && (typeService == CONFIRM))
     { 
       NS_LOG_INFO ("CAL-->OPEN.cnf(Ok) (S)");
@@ -66,8 +69,48 @@ CosemApClient::Recv (int nbytes, int typeAcseService, int typeGet, int typeServi
       // Save the AA successfully established: (wPort, Ptr<CosemApServer> cosemApServer)
       SaveActiveAa (cosemApServer);
 
-      // Event: Invoke the COSEM-GET.req service-Start the phase II: Communication Data
-      Simulator::Schedule (Seconds (0.0), &CosemAlClient::CosemXdlmsGet, m_cosemAlClient, GET_NORMAL, REQUEST, cosemApServer);
+      // Event: Invoke the COSEM-GET.req (NORMAL) service-Start the phase II: Communication Data
+      Ptr<Packet> packet = NULL; // dummy packet
+      Simulator::Schedule (Seconds (0.0), &CosemAlClient::CosemXdlmsGet, m_cosemAlClient, GET_NORMAL, REQUEST, cosemApServer, packet);
+    }
+
+  // COSEM-GET.cnf (NORMAL, Data)
+  if ((typeGet == GET_NORMAL) && (typeService == CONFIRM))
+    { 
+      NS_LOG_INFO ("CAL-->Get.cnf(Normal, Data) (S)");
+
+      // Extract the requested data
+      CosemGetResponseNormalHeader hdr;
+      packet->RemoveHeader (hdr);
+      m_reqData = hdr.GetData ();
+      m_sizeReqData = hdr.GetSerializedSize ();
+      NS_LOG_INFO ("CAP (id = "<< m_wPort <<")" << "has received data from the SAP (id = " << cosemApServer->GetWport () << ")");
+
+    // Set a timer that permits to request new data to the SMs (SAPs)
+    if (m_nSap == m_totalNSap)
+      { 
+        NS_LOG_INFO ("CAP (id = "<< m_wPort <<")" << "has finished the requesting process!");
+       
+        // Set a delay to request new data to the SMs 
+	m_nextRequestEvent = Simulator::Schedule (Seconds (NextTimeRequestSm ()), &CosemApClient::NewRequest, this); 
+
+        // Initialize "it" parameter at the first entry in the Map that contains the SAPs that successfully established an AA
+        m_it = m_activeAa.begin(); 
+        m_enableNewRQ = 1;	
+      }
+    else
+      {
+        if (m_enableNewRQ == 1)
+          {
+            // Next SAP to request (new request)				
+	    m_nextRequestEvent = Simulator::Schedule (Seconds (0.0), &CosemApClient::NewRequest, this); 
+          }
+        else
+          {	
+            // Next SAP to request (first request)
+            m_startRequestEvent = Simulator::Schedule (Seconds (0.0), &CosemApClient::StartRequest, this);  
+          }   
+       }
     }
 }
 
@@ -76,6 +119,7 @@ CosemApClient::StartRequest ()
 {
   NS_LOG_FUNCTION_NOARGS ();
   NS_ASSERT (m_startRequestEvent.IsExpired ());
+  Simulator::Cancel (m_startRequestEvent);
  
   if (!m_typeRequesting)
     {
@@ -84,14 +128,12 @@ CosemApClient::StartRequest ()
     }
   else
     {
-
       if (m_itSap == m_containerSap.Begin ())
         {
-          NS_LOG_INFO ("Sequential Resquesting Mechanism");
-          Ptr<Application> app = m_containerSap.Get (1);
+          NS_LOG_INFO ("Sequential Resquesting Mechanism (polling)");
+          Ptr<Application> app = m_containerSap.Get (m_nSap ++);
           m_curretCosemApServer = app->GetObject<CosemApServer> ();  // Retrieve the first Saps pointer stored in AppContainer 
           m_itSap ++;  // Increase the value of "it" by one
-          m_nSap ++;   // Increase by one the counter of Saps
           /* 
            * Invoke the COSEM-OPEN.req service implemented in CosemClient_AL_CF	
            * in order to establish an AA with a remote server (sap)
@@ -102,15 +144,14 @@ CosemApClient::StartRequest ()
         {
           if (m_itSap != m_containerSap.End())
             {
-              Ptr<Application> app = m_containerSap.Get (m_nSap);
-              Ptr<CosemApServer> sap = app->GetObject<CosemApServer> ();  
+              Ptr<Application> app = m_containerSap.Get (m_nSap ++); 
+              m_curretCosemApServer = app->GetObject<CosemApServer> ();  
               m_itSap ++;  
-              m_nSap ++; 
-              m_cosemAlClient->CosemAcseOpen (REQUEST, sap);         
+              m_cosemAlClient->CosemAcseOpen (REQUEST, m_curretCosemApServer);         
             }
           else
             {
-              m_nSap = 1;  
+              m_nSap = 0;  
             }
         }
     }
@@ -119,7 +160,33 @@ CosemApClient::StartRequest ()
 void
 CosemApClient::NewRequest ()
 {
+  NS_LOG_FUNCTION_NOARGS ();
+  NS_ASSERT (m_nextRequestEvent.IsExpired ());
+  Simulator::Cancel (m_nextRequestEvent);
 
+  if (!m_typeRequesting)
+    {
+      NS_LOG_INFO ("Multicast Resquesting Mechanism");
+      // do nothing
+    }
+  else
+    {
+      //  Request new data only to the SAP, which the CAP has established a successfully AA
+      if (m_it != m_activeAa.end())
+        {  
+          // Event: Invoke the COSEM-GET.req (NORMAL) service-Start the phase II: Communication Data
+          Ptr<Packet> packet = NULL; // dummy packet
+          m_curretCosemApServer = m_it->second;
+          Simulator::Schedule (Seconds (0.0), &CosemAlClient::CosemXdlmsGet, m_cosemAlClient, GET_NORMAL, REQUEST, m_curretCosemApServer, packet);
+          m_it ++;
+          m_nSap ++;
+        }
+      else 
+        {
+          m_nSap = 0; 
+          m_enableNewRQ = 0; 
+        }
+    }
 }
 
 void 
@@ -128,10 +195,10 @@ CosemApClient::RequestRelease ()
 
 }
 
-double 
+Time
 CosemApClient::NextTimeRequestSm ()
 {
-  return 0;
+  return m_nextTimeRequest;
 }
 
 void 
@@ -251,6 +318,18 @@ CosemApClient::GetTypeRequesting ()
   return m_typeRequesting;
 }
 
+void 
+CosemApClient::SetNextTimeRequest (Time nextTimeRequest)
+{
+  m_nextTimeRequest = nextTimeRequest;
+}
+
+Time 
+CosemApClient::GetNextTimeRequest ()
+{
+  return m_nextTimeRequest;
+}
+
 Ptr<Node>
 CosemApClient::GetNode () const
 {
@@ -272,6 +351,8 @@ CosemApClient::StartApplication (void)
   m_startRequestEvent = Simulator::Schedule (Seconds (0.0), &CosemApClient::StartRequest, this);
   // Set the iterator at the begining of the container
   m_itSap = m_containerSap.Begin ();   
+  // Retreive the total number of SAP that this Cap could resquet
+  m_totalNSap = m_containerSap.GetN ();
 }
 
 void 

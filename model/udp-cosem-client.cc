@@ -25,6 +25,7 @@
 #include "ns3/inet-socket-address.h"
 #include "ns3/socket-factory.h"
 #include "ns3/simulator.h"
+#include "ns3/nstime.h"
 #include "cosem-header.h"
 #include "cosem-ap-server.h"
 #include "cosem-al-client.h"
@@ -90,15 +91,17 @@ UdpCosemWrapperClient::Send (Ptr<Packet> packet, Ptr<CosemApServer> cosemApServe
     {
       TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
       m_socket = Socket::CreateSocket (m_cosemAlClient->GetCosemApClient ()->GetNode (), tid);
+      m_socket->Bind ();   // For Ipv4 ---> check it out!!
       NS_LOG_INFO ("UDPSocketClient created");
-      if (Ipv4Address::IsMatchingType(m_remoteAddress) == true)
-        {
-          m_socket->Bind ();
-          m_socket->Connect (InetSocketAddress (Ipv4Address::ConvertFrom(m_remoteAddress), m_udpPort)); // m_udpPort same as Client
-          NS_LOG_INFO ("Client connected with Server " << m_remoteAddress);
-        }
-       // Set the callback method ("Adapt" Recv Udp funtion to UDP-DATA.ind (APDU))
-       m_socket->SetRecvCallback (MakeCallback (&UdpCosemWrapperClient::Recv, this));
+      // Set the callback method ("Adapt" Recv Udp funtion to UDP-DATA.ind (APDU))
+      m_socket->SetRecvCallback (MakeCallback (&UdpCosemWrapperClient::Recv, this));
+    }
+
+  // Connect the CAP with the remote SAP   ---> check it out!!
+  if (Ipv4Address::IsMatchingType(m_remoteAddress) == true)
+    {
+      m_socket->Connect (InetSocketAddress (Ipv4Address::ConvertFrom(m_remoteAddress), m_udpPort)); // m_udpPort same as Client
+      NS_LOG_INFO ("Client connected with Server " << m_remoteAddress);
     }
 
   // Add Wrapper header

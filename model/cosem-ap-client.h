@@ -31,6 +31,8 @@
 namespace ns3 {
 
 class Node;
+class Packet;
+class Time;
 class CosemAlClient;
 class CosemApServer;
 
@@ -49,7 +51,7 @@ public:
   virtual ~CosemApClient ();
 
   // Called when new packet received
-  void Recv (int nbytes, int typeAcseService, int typeGet, int typeService, Ptr<CosemApServer> cosemApServer);
+  void Recv (Ptr<Packet> packet, int typeAcseService, int typeGet, int typeService, Ptr<CosemApServer> cosemApServer);
 
   // Start the request of data to the SAP by the CAP
   void StartRequest ();
@@ -61,7 +63,7 @@ public:
   void RequestRelease ();
 
   // Compute and return the next time that the Client(DC) requests to the Servers (SmartMeter,SM)
-  double NextTimeRequestSm ();
+  Time NextTimeRequestSm ();
 
   // Store the AAs succesfully established
   void SaveActiveAa (Ptr<CosemApServer> cosemApServer);
@@ -98,6 +100,10 @@ public:
   // Set & Get the type of requesting mechanism
   void SetTypeRequesting (bool typeRequesting);
   bool GetTypeRequesting ();
+ 
+  // Set & Get the next time that the Client(DC) requests to the Servers (SmartMeter,SM)
+  void SetNextTimeRequest (Time nextTimeRequest);
+  Time GetNextTimeRequest ();
 
   // Retrieve the node where the CAP is attached
   Ptr<Node> GetNode () const;
@@ -123,7 +129,10 @@ private:
   Address m_localAddress;  // Local Ip address 
   ApplicationContainer m_containerSap; // Container of Sap in the scenario
   Ptr<CosemApServer> m_curretCosemApServer;  // Pointer of the curret remote SAP 
+  Time m_nextTimeRequest; // Next time request of data to SAPs
   bool m_typeRequesting;  // Type Requesting mechanism: TRUE = MULTICASTING (simultaneous); FALSE = SEQUENCIAL (Round Robin style)
+  uint32_t m_reqData; // The requested Data sent by the remote SAP
+  uint32_t m_sizeReqData; // Size in Bytes of the requested Data sent by the remote SAP
 
   // Map container to store the AAs succesfully established 
   std::map<uint16_t, Ptr<CosemApServer> > m_activeAa;	
@@ -134,9 +143,11 @@ private:
 
   // Helpers parameters
   EventId m_startRequestEvent;
+  EventId m_nextRequestEvent;
   std::vector<Ptr<Application> >::const_iterator m_itSap; // Iterator AppContainer
-  uint32_t m_nSap;  // Number of Saps          
-
+  uint32_t m_nSap;  // Number of Saps 
+  uint32_t m_totalNSap;  // Total Number of Saps   
+  uint8_t m_enableNewRQ;         
 };
 
 } // namespace ns3

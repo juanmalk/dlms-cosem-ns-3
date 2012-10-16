@@ -20,7 +20,10 @@
 
 #include "ns3/log.h"
 #include "ns3/node.h"
+#include "ns3/packet.h"
 #include "ns3/simulator.h"
+#include "ns3/nstime.h"
+#include "cosem-header.h"
 #include "cosem-al-server.h"
 #include "cosem-ap-server.h"
 
@@ -52,14 +55,44 @@ CosemApServer::~CosemApServer ()
 }
 
 void 
-CosemApServer::Recv (int nbytes, int typeAcseService, int typeGet, int typeService)
+CosemApServer::Recv (int typeAcseService, int typeGet, int typeService, Ptr<Packet> packet)
 {
-  // COSEM-OPEN.cnf
+  // COSEM-OPEN.ind
   if ((typeAcseService == OPEN) && (typeService == INDICATION))
     { 
       NS_LOG_INFO ("SAL-->OPEN.ind (S)");
       // Event: Invoke the COSEM-OPEN.res service
-      Simulator::Schedule (Seconds (0.0), &CosemAlServer::CosemAcseOpen, m_cosemAlServer, RESPONSE);
+      Simulator::Schedule (Seconds (0.0), &CosemAlServer::CosemAcseOpen, m_cosemAlServer, RESPONSE, packet);
+    }
+
+  // COSEM-GET.ind
+  if (typeService == INDICATION)
+    {  
+      if (typeGet == GET_NORMAL)
+        { 
+          NS_LOG_INFO ("SAL-->GET.ind (NORMAL) (S)");
+
+          // Extract invoke-id-and-priority & cosem-attribute-descriptor parameters
+          CosemGetRequestNormalHeader hdr;
+          packet->RemoveHeader (hdr);
+          m_reqData [0] = hdr.GetClassId (); 
+          m_reqData [1] = hdr.GetInstanceId ();  
+          m_reqData [2] = hdr.GetAttributeId ();
+
+          // Future work: Invoke the Cosem interface model and return the data requested by the remote CAP
+          uint32_t data = 0x251; // Ex. 593 kWh [long-unsigned, Page 22 of IEC 62056-62], 
+
+          // Event: Invoke the COSEM-GET.res (NORMAL, Data) service
+          Simulator::Schedule (Seconds (0.0), &CosemAlServer::CosemXdlmsGet, m_cosemAlServer, GET_NORMAL, RESPONSE, packet, data, hdr.GetInvokeIdAndPriority ()); 
+        }
+      else
+        {
+          NS_LOG_INFO ("Error: Undefined Get.ind Type (SAP)");     
+        }    
+    }
+  else
+    {
+      NS_LOG_INFO ("Error: Undefined indicaction Cosem service (SAP)");     
     }
 }
 
