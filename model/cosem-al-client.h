@@ -50,10 +50,10 @@ public:
   virtual ~CosemAlClient();
 
   // COSEM-OPEN service of ACSE, implemented by the derived class
-  void CosemAcseOpen (int typeService, Ptr<CosemApServer> cosemApServer);
+  void CosemAcseOpen (int typeService, Ptr<CosemApServer> cosemApServer, Ptr<Packet> packet);
 	
   // COSEM-RELEASE service of ACSE, implemented by the derived class
-  void CosemAcseRelease (int typeService, Ptr<CosemApServer> cosemApServer);
+  void CosemAcseRelease (int typeService, Ptr<CosemApServer> cosemApServer, Ptr<Packet> packet);
 	
   // COSEM-GET service of xDLMS_ASE, implemented by the derived class
   void CosemXdlmsGet (int typeGet, int typeService, Ptr<CosemApServer> cosemApServer, Ptr<Packet> packet);
@@ -96,6 +96,9 @@ public:
   // Set & GET the Udp Port listening by the CAL
   void SetUdpport (uint16_t udpPort);
   uint16_t GetUdpport ();
+
+  // Set the m_changeStateEvent pointer
+  void SetChangeStateEvent (EventId changeStateEvent);
 
   // States machine of the Control Function
   enum stateCf { CF_INACTIVE, CF_IDLE, CF_ASSOCIATION_PENDING, CF_ASSOCIATED, CF_ASSOCIATION_RELEASE_PENDING };

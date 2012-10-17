@@ -55,45 +55,59 @@ CosemApServer::~CosemApServer ()
 }
 
 void 
-CosemApServer::Recv (int typeAcseService, int typeGet, int typeService, Ptr<Packet> packet)
+CosemApServer::Recv (int typeAcseService, int typeGet, Ptr<Packet> packet)
 {
-  // COSEM-OPEN.ind
-  if ((typeAcseService == OPEN) && (typeService == INDICATION))
+  // COSEM ACSE services: COSEM-OPEN.ind & COSEM-RELEASE.ind
+  if (typeAcseService == OPEN)
     { 
       NS_LOG_INFO ("SAL-->OPEN.ind (S)");
+  
+      // "Receive" the xDLMS-Initiate.ind (information not used at the moment)
+      CosemAarqHeader hdr;
+      packet->RemoveHeader (hdr);
+
       // Event: Invoke the COSEM-OPEN.res service
-      Simulator::Schedule (Seconds (0.0), &CosemAlServer::CosemAcseOpen, m_cosemAlServer, RESPONSE, packet);
+      Simulator::Schedule (Seconds (0.0), &CosemAlServer::CosemAcseOpen, m_cosemAlServer, RESPONSE, packet); 
     }
+  else if (typeAcseService == RELEASE)
+    {
+      NS_LOG_INFO ("SAL-->RELEASE.ind (S)");
 
-  // COSEM-GET.ind
-  if (typeService == INDICATION)
-    {  
-      if (typeGet == GET_NORMAL)
-        { 
-          NS_LOG_INFO ("SAL-->GET.ind (NORMAL) (S)");
+      // Extract the Release-Request-Reason (information not used at the moment)
+      CosemRlrqHeader hdr;
+      packet->RemoveHeader (hdr);
+      // uint8_t reason = hdr.GetReason ();
 
-          // Extract invoke-id-and-priority & cosem-attribute-descriptor parameters
-          CosemGetRequestNormalHeader hdr;
-          packet->RemoveHeader (hdr);
-          m_reqData [0] = hdr.GetClassId (); 
-          m_reqData [1] = hdr.GetInstanceId ();  
-          m_reqData [2] = hdr.GetAttributeId ();
+      // Event: Invoke the COSEM-RELEASE.res service
+      Simulator::Schedule (Seconds (0.0), &CosemAlServer::CosemAcseRelease, m_cosemAlServer, RESPONSE, packet);  
+    }  
+  else
+    {
+      NS_LOG_ERROR ("Error: Undefined ACSE Service Type (SAP)");     
+    }   
 
-          // Future work: Invoke the Cosem interface model and return the data requested by the remote CAP
-          uint32_t data = 0x251; // Ex. 593 kWh [long-unsigned, Page 22 of IEC 62056-62], 
+  // COSEM-GET.ind 
+  if (typeGet == GET_NORMAL)
+    { 
+      NS_LOG_INFO ("SAL-->GET.ind (NORMAL) (S)");
 
-          // Event: Invoke the COSEM-GET.res (NORMAL, Data) service
-          Simulator::Schedule (Seconds (0.0), &CosemAlServer::CosemXdlmsGet, m_cosemAlServer, GET_NORMAL, RESPONSE, packet, data, hdr.GetInvokeIdAndPriority ()); 
-        }
-      else
-        {
-          NS_LOG_INFO ("Error: Undefined Get.ind Type (SAP)");     
-        }    
+      // Extract invoke-id-and-priority & cosem-attribute-descriptor parameters
+      CosemGetRequestNormalHeader hdr;
+      packet->RemoveHeader (hdr);
+      m_reqData [0] = hdr.GetClassId (); 
+      m_reqData [1] = hdr.GetInstanceId ();  
+      m_reqData [2] = hdr.GetAttributeId ();
+
+      // Future work: Invoke the Cosem interface model and return the data requested by the remote CAP
+      uint32_t data = 0x251; // Ex. 593 kWh [long-unsigned, Page 22 of IEC 62056-62], 
+
+      // Event: Invoke the COSEM-GET.res (NORMAL, Data) service
+      Simulator::Schedule (Seconds (0.0), &CosemAlServer::CosemXdlmsGet, m_cosemAlServer, GET_NORMAL, RESPONSE, packet, data, hdr.GetInvokeIdAndPriority ()); 
     }
   else
     {
-      NS_LOG_INFO ("Error: Undefined indicaction Cosem service (SAP)");     
-    }
+      NS_LOG_ERROR ("Error: Undefined COSEM GET Type service (SAP)");     
+    }    
 }
 
 Ptr<Node>
@@ -158,20 +172,20 @@ CosemApServer::GetLocalAddress ()
   return m_localAddress;
 }
 
-
 void 
 CosemApServer::StartApplication (void)
 {
   NS_LOG_FUNCTION_NOARGS ();
+  m_cosemAlServer->Init ();
 }
 
 void 
 CosemApServer::StopApplication (void)
 {
   NS_LOG_FUNCTION_NOARGS ();
+  // do nothing 
 }
 
 } // namespace ns3
-
 
 

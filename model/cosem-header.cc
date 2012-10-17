@@ -577,12 +577,6 @@ CosemRlrqHeader::CosemRlrqHeader ()
 {
   m_idApdu = RLRQ ;
   m_reason = 0;
-  m_dedicatedKey = 0;
-  m_responseAllowed = true;
-  m_proposedQualityOfService = 0;  	
-  m_proposedDlmsVersionNumber = 6;
-  m_proposedConformance = 0x001010;   // {0x001010}, Based on the example in Annex C IEC 62056-53	
-  m_clientMaxReceivePduSize = 0x4B0;  // Client_Max_Receive_PDU_Size,{0x4B0}:1200 bytes
 }
 
 CosemRlrqHeader::~CosemRlrqHeader ()
@@ -599,7 +593,7 @@ CosemRlrqHeader::GetInstanceTypeId (void) const
 uint32_t 
 CosemRlrqHeader::GetSerializedSize (void) const
 {
-  return 12;
+  return 2;
 }
  
 void 
@@ -607,12 +601,6 @@ CosemRlrqHeader::Serialize (Buffer::Iterator start) const
 {
   start.WriteU8 (m_idApdu);
   start.WriteU8 (m_reason);
-  start.WriteU8 (m_dedicatedKey);
-  start.WriteU8 ((uint8_t) m_responseAllowed);
-  start.WriteU8 (m_proposedQualityOfService);
-  start.WriteU8 (m_proposedDlmsVersionNumber);
-  start.WriteHtonU32 (m_proposedConformance);
-  start.WriteHtonU16 (m_clientMaxReceivePduSize);
 }
 
 uint32_t 
@@ -621,12 +609,6 @@ CosemRlrqHeader::Deserialize (Buffer::Iterator start)
   Buffer::Iterator i = start;
   m_idApdu = i.ReadU8 ();
   m_reason = i.ReadU8 ();
-  m_dedicatedKey = i.ReadU8 ();
-  m_responseAllowed = (bool)i.ReadU8 ();
-  m_proposedQualityOfService = i.ReadU8 ();
-  m_proposedDlmsVersionNumber = i.ReadU8 ();
-  m_proposedConformance = i.ReadNtohU32 ();
-  m_clientMaxReceivePduSize = i.ReadNtohU16 ();
   return GetSerializedSize ();
 }
 
@@ -634,13 +616,7 @@ void
 CosemRlrqHeader::Print (std::ostream &os) const
 {
   os << "id AARQ " << m_idApdu
-     << "Release request reason " << m_reason
-     << "Dedicated Key " << m_dedicatedKey
-     << "Reponse Allowed " << m_responseAllowed
-     << "Proposed Quality Of Service " << m_proposedQualityOfService
-     << "Version number " << m_proposedDlmsVersionNumber
-     << "Proposed Conformance " << m_proposedConformance
-     << "Client Max Receive PDU Size " << m_clientMaxReceivePduSize;   
+     << "Release request reason " << m_reason;
 }
 
 void 
@@ -666,77 +642,6 @@ CosemRlrqHeader::GetReason (void) const
 {
   return m_reason;
 }
-void
-CosemRlrqHeader::SetDedicatedKey (uint8_t dedicatedKey)
-{
-  m_dedicatedKey = dedicatedKey;
-}
-
-uint8_t
-CosemRlrqHeader::GetDedicatedKey (void) const
-{
-  return m_dedicatedKey;
-}
-
-void
-CosemRlrqHeader::SetResponseAllowed (bool responseAllowed)
-{
-  m_responseAllowed = responseAllowed;
-}
-
-bool 
-CosemRlrqHeader::GetResponseAllowed (void) const
-{
-  return m_responseAllowed;
-}
-
-void 
-CosemRlrqHeader::SetProposedQualityOfService (uint8_t proposedQualityOfService)
-{
-  m_proposedQualityOfService = proposedQualityOfService;
-}
-
-uint8_t 
-CosemRlrqHeader::GetProposedQualityOfService (void) const
-{
-  return m_proposedQualityOfService;
-} 
-
-void 
-CosemRlrqHeader::SetProposedDlmsVersionNumber (uint8_t proposedDlmsVersionNumber)
-{
-  m_proposedDlmsVersionNumber = proposedDlmsVersionNumber;
-} 
-
-uint8_t 
-CosemRlrqHeader::GetProposedDlmsVersionNumber (void) const
-{
-  return m_proposedDlmsVersionNumber;
-}
-
-void 
-CosemRlrqHeader::SetProposedConformance (uint32_t proposedConformance)
-{
-  m_proposedConformance = proposedConformance;
-}
-
-uint32_t 
-CosemRlrqHeader::GetProposedConformance (void) const
-{
-  return m_proposedConformance;
-}
-
-void 
-CosemRlrqHeader::SetClientMaxReceivePduSize (uint16_t clientMaxReceivePduSize)
-{
-  m_clientMaxReceivePduSize = clientMaxReceivePduSize;
-} 
-
-uint16_t 
-CosemRlrqHeader::GetClientMaxReceivePduSize (void) const
-{
-  return m_clientMaxReceivePduSize;
-}  
 
 /*-----------------------------------------------------------------------------
  *  RLRE APDU
@@ -758,11 +663,6 @@ CosemRlreHeader::CosemRlreHeader ()
 {
   m_idApdu = RLRE;
   m_reason = 0;
-  m_negotiatedQualityOfService = 0;  
-  m_negotiatedDlmsVersionNumber = 6; 
-  m_negotiatedConformance = 0x001010; // {0x001010}, Based on the example in Annex C IEC 62056-53
-  m_serverMaxReceivePduSize = 0x1F4;  // Server_Max_Receive_PDU_Size,{0x1F4}: 500 bytes 
-  m_vaaName = 0x0007; // Dummy Value {0x0007}.Taken from page 98 IEC 62056-53
 }
 
 CosemRlreHeader::~CosemRlreHeader ()
@@ -779,7 +679,7 @@ CosemRlreHeader::GetInstanceTypeId (void) const
 uint32_t 
 CosemRlreHeader::GetSerializedSize (void) const
 {
-  return 12;
+  return 2;
 }
  
 void 
@@ -787,11 +687,6 @@ CosemRlreHeader::Serialize (Buffer::Iterator start) const
 {
   start.WriteU8 (m_idApdu);
   start.WriteU8 (m_reason);
-  start.WriteU8 (m_negotiatedQualityOfService);
-  start.WriteU8 (m_negotiatedDlmsVersionNumber);
-  start.WriteHtonU32 (m_negotiatedConformance);
-  start.WriteHtonU16 (m_serverMaxReceivePduSize);
-  start.WriteHtonU16 (m_vaaName);
 }
 
 uint32_t 
@@ -800,12 +695,6 @@ CosemRlreHeader::Deserialize (Buffer::Iterator start)
   Buffer::Iterator i = start;
   m_idApdu = i.ReadU8 ();
   m_reason = i.ReadU8 ();
-  m_negotiatedQualityOfService = i.ReadU8 ();
-  m_negotiatedDlmsVersionNumber = i.ReadU8 ();
-  m_negotiatedConformance = i.ReadNtohU32 ();
-  m_serverMaxReceivePduSize = i.ReadNtohU16 ();
-  m_vaaName = i.ReadNtohU16 ();
-
   return GetSerializedSize ();
 }
 
@@ -813,12 +702,7 @@ void
 CosemRlreHeader::Print (std::ostream &os) const
 {
   os << "id AARQ " << m_idApdu
-     << "Release request reason " << m_reason
-     << "Negotiated Quality Of Service " << m_negotiatedQualityOfService
-     << "Negotiated Dlms Version Number " <<  m_negotiatedDlmsVersionNumber
-     << "Negotiated Conformance " << m_negotiatedConformance 
-     << "Server Max Receive Pdu Size " <<  m_serverMaxReceivePduSize
-     << "vaa-name " <<  m_vaaName;
+     << "Release request reason " << m_reason;
 }
 
 void 
@@ -845,66 +729,6 @@ CosemRlreHeader::GetReason (void) const
   return m_reason;
 }
  
-void 
-CosemRlreHeader::SetNegotiatedQualityOfService (uint8_t negotiatedQualityOfService)
-{
-  m_negotiatedQualityOfService = negotiatedQualityOfService;
-}
-
-uint8_t 
-CosemRlreHeader::GetNegotiatedQualityOfService (void) const
-{
-  return m_negotiatedQualityOfService;
-}
-
-void 
-CosemRlreHeader::SetNegotiatedDlmsVersionNumber (uint8_t negotiatedDlmsVersionNumber)
-{
-  m_negotiatedDlmsVersionNumber = negotiatedDlmsVersionNumber;
-}
-
-uint8_t 
-CosemRlreHeader::GetNegotiatedDlmsVersionNumber (void) const
-{
-  return m_negotiatedDlmsVersionNumber;
-}
-
-void 
-CosemRlreHeader::SetNegotiatedConformance (uint32_t negotiatedConformance)
-{
-  m_negotiatedConformance = negotiatedConformance;
-}
-
-uint32_t 
-CosemRlreHeader::GetNegotiatedConformance (void) const
-{
-  return m_negotiatedConformance;
-}
-
-void
-CosemRlreHeader::SetServerMaxReceivePduSize (uint16_t serverMaxReceivePduSize)
-{
-  m_serverMaxReceivePduSize = serverMaxReceivePduSize;
-}
- 
-uint16_t 
-CosemRlreHeader::GetServerMaxReceivePduSize (void) const
-{
-  return m_serverMaxReceivePduSize;
-}
-  
-void
-CosemRlreHeader::SetVaaName (uint16_t vaaName)
-{
-  m_vaaName = vaaName;
-}
- 
-uint16_t 
-CosemRlreHeader::GetVaaName (void) const
-{
-  return m_vaaName;
-}
-
 /*-----------------------------------------------------------------------------
  *  GET-Request (Normal) APDU
  *-----------------------------------------------------------------------------

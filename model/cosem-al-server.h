@@ -49,7 +49,7 @@ public:
   void CosemAcseOpen (int typeService, Ptr<Packet> packet);
 	
   // COSEM-RELEASE service of ACSE, implemented by the derived class
-  void CosemAcseRelease (int typeService, Ptr<CosemApServer> sap);
+  void CosemAcseRelease (int typeService, Ptr<Packet> packet);
 	
   // COSEM-GET service of xDLMS_ASE, implemented by the derived class
   void CosemXdlmsGet (int typeGet, int typeService, Ptr<Packet> packet, uint32_t data, uint8_t invokeIdAndPriority);
@@ -92,6 +92,9 @@ public:
   // Set & GET the Udp Port listening by the CAL
   void SetUdpport (uint16_t udpPort);
   uint16_t GetUdpport ();
+
+  // Initial Process at the node (physical device)
+  void Init ();
  
   // States machine of the Control Function
   enum stateCf { CF_INACTIVE, CF_IDLE, CF_ASSOCIATION_PENDING, CF_ASSOCIATED, CF_ASSOCIATION_RELEASE_PENDING };

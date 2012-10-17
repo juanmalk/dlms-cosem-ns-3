@@ -51,7 +51,7 @@ public:
   virtual ~CosemApClient ();
 
   // Called when new packet received
-  void Recv (Ptr<Packet> packet, int typeAcseService, int typeGet, int typeService, Ptr<CosemApServer> cosemApServer);
+  void Recv (Ptr<Packet> packet, int typeAcseService, int typeGet, Ptr<CosemApServer> cosemApServer);
 
   // Start the request of data to the SAP by the CAP
   void StartRequest ();
@@ -70,9 +70,6 @@ public:
 	
   // Remove the AAs succesfully established before
   void RemoveActiveAa (Ptr<CosemApServer> cosemApServer);
-
-  // Return the AAs succesfully established before
-  Ptr<CosemApServer> ReturnActiveAa (uint16_t dstWport);
 
   // Set & GET the pointer to a CosemAlClient object
   void SetCosemAlClient (Ptr<CosemAlClient> cosemAlClient);
@@ -107,7 +104,7 @@ public:
 
   // Retrieve the node where the CAP is attached
   Ptr<Node> GetNode () const;
-
+  
   // Type of services
   enum typeService { REQUEST, INDICATION, RESPONSE, CONFIRM };
 
@@ -116,6 +113,9 @@ public:
 
   // ACSE services
   enum typeAcseService { OPEN, RELEASE }; 
+
+  // States machine of the Control Function
+  enum stateCf { CF_INACTIVE, CF_IDLE, CF_ASSOCIATION_PENDING, CF_ASSOCIATED, CF_ASSOCIATION_RELEASE_PENDING };
 	
 protected:
 
@@ -144,6 +144,7 @@ private:
   // Helpers parameters
   EventId m_startRequestEvent;
   EventId m_nextRequestEvent;
+  EventId m_releaseAAEvent;
   std::vector<Ptr<Application> >::const_iterator m_itSap; // Iterator AppContainer
   uint32_t m_nSap;  // Number of Saps 
   uint32_t m_totalNSap;  // Total Number of Saps   

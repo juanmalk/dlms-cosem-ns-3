@@ -48,7 +48,7 @@ public:
   virtual ~CosemApServer ();
 
   // Called when new message received (for COSEM-GET services)
-  void Recv (int typeAcseService, int typeGet, int typeService, Ptr<Packet> packet);
+  void Recv (int typeAcseService, int typeGet, Ptr<Packet> packet);
 
   // Retrieve the node where the CAP is attached
   Ptr<Node> GetNode () const;
@@ -68,7 +68,7 @@ public:
   // Set & GET the local Ip address
   void SetLocalAddress (Address ip);
   Address GetLocalAddress ();
-
+  
   // Type of services
   enum typeService { REQUEST, INDICATION, RESPONSE, CONFIRM };
 

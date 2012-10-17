@@ -47,10 +47,17 @@ CosemApClient::CosemApClient ()
 {
   NS_LOG_FUNCTION_NOARGS ();
   m_wPort = 0;
-  m_udpPort = 0;
-  m_startRequestEvent = EventId ();
+  m_udpPort = 4056;
+  m_nextTimeRequest = Seconds (0.0);
   m_typeRequesting = false;
+  m_reqData = 0; 
+  m_sizeReqData = 0;
+  m_startRequestEvent = EventId ();
+  m_nextRequestEvent = EventId (); 
+  m_releaseAAEvent = EventId ();
   m_nSap = 0;
+  m_totalNSap = 0; 
+  m_enableNewRQ = 0;   
 }
 
 CosemApClient::~CosemApClient ()
@@ -59,12 +66,16 @@ CosemApClient::~CosemApClient ()
 }
 
 void 
-CosemApClient::Recv (Ptr<Packet> packet, int typeAcseService, int typeGet, int typeService, Ptr<CosemApServer> cosemApServer)
+CosemApClient::Recv (Ptr<Packet> packet, int typeAcseService, int typeGet, Ptr<CosemApServer> cosemApServer)
 {
-  // COSEM-OPEN.cnf
-  if ((typeAcseService == OPEN) && (typeService == CONFIRM))
+  // COSEM ACSE services: COSEM-OPEN.cnf & COSEM-RELEASE.cnf 
+  if (typeAcseService == OPEN)
     { 
       NS_LOG_INFO ("CAL-->OPEN.cnf(Ok) (S)");
+
+      // "Receive" the xDLMS-Initiate.res (information not used at the moment)
+      CosemAareHeader hdr;
+      packet->RemoveHeader (hdr);
 
       // Save the AA successfully established: (wPort, Ptr<CosemApServer> cosemApServer)
       SaveActiveAa (cosemApServer);
@@ -73,9 +84,48 @@ CosemApClient::Recv (Ptr<Packet> packet, int typeAcseService, int typeGet, int t
       Ptr<Packet> packet = NULL; // dummy packet
       Simulator::Schedule (Seconds (0.0), &CosemAlClient::CosemXdlmsGet, m_cosemAlClient, GET_NORMAL, REQUEST, cosemApServer, packet);
     }
+  else if (typeAcseService == RELEASE)
+    {
+      NS_LOG_INFO ("CAL-->RELEASE.cnf (S)");
+
+      // Extract the Release-Response-Reason 
+      CosemRlreHeader hdr;
+      packet->RemoveHeader (hdr);
+      uint8_t reason = hdr.GetReason ();
+
+      if (reason == 0)
+        {
+          // Remove the AA successfully established before with this remote SAP
+          RemoveActiveAa (cosemApServer);
+
+          NS_LOG_INFO ("CAP (id = "<< m_wPort <<")" << "has released the AA with SAP (id = " << cosemApServer->GetWport () << ")");       
+        }
+      else
+        {
+          NS_LOG_ERROR ("Release AA action rejected by SAP (id = " << cosemApServer->GetWport () << ")"); 
+        }
+
+      if (m_nSap == m_totalNSap)
+        {
+          NS_LOG_INFO ("CAP (id = "<< m_wPort <<")" << "has finished the releasing process!");
+
+          // Event: Change the state of CAL to IDLE
+          EventId changeStateEvent = Simulator::Schedule (Seconds (0.0), &CosemAlClient::SetStateCf, m_cosemAlClient, CF_IDLE);
+          m_cosemAlClient->SetChangeStateEvent (changeStateEvent);
+        }
+      else
+        {
+          // Event: Release AA established with the next remote SAP on the list
+          m_releaseAAEvent = Simulator::Schedule (Seconds (0.0), &CosemApClient::RequestRelease, this);
+        }
+    }     
+  else
+    {
+      NS_LOG_ERROR ("Error: Undefined ACSE Service Type (CAP)");     
+    }  
 
   // COSEM-GET.cnf (NORMAL, Data)
-  if ((typeGet == GET_NORMAL) && (typeService == CONFIRM))
+  if (typeGet == GET_NORMAL)
     { 
       NS_LOG_INFO ("CAL-->Get.cnf(Normal, Data) (S)");
 
@@ -112,6 +162,10 @@ CosemApClient::Recv (Ptr<Packet> packet, int typeAcseService, int typeGet, int t
           }   
        }
     }
+  else
+    {
+      NS_LOG_ERROR ("Error: Undefined COSEM GET Type (SAP)");     
+    }  
 }
 
 void 
@@ -138,7 +192,8 @@ CosemApClient::StartRequest ()
            * Invoke the COSEM-OPEN.req service implemented in CosemClient_AL_CF	
            * in order to establish an AA with a remote server (sap)
            */
-          m_cosemAlClient->CosemAcseOpen (REQUEST, m_curretCosemApServer); 
+          Ptr<Packet> packet = NULL; // dummy packet
+          m_cosemAlClient->CosemAcseOpen (REQUEST, m_curretCosemApServer, packet); 
         }
       else 
         {
@@ -147,7 +202,8 @@ CosemApClient::StartRequest ()
               Ptr<Application> app = m_containerSap.Get (m_nSap ++); 
               m_curretCosemApServer = app->GetObject<CosemApServer> ();  
               m_itSap ++;  
-              m_cosemAlClient->CosemAcseOpen (REQUEST, m_curretCosemApServer);         
+              Ptr<Packet> packet = NULL; // dummy packet
+              m_cosemAlClient->CosemAcseOpen (REQUEST, m_curretCosemApServer, packet);         
             }
           else
             {
@@ -192,7 +248,33 @@ CosemApClient::NewRequest ()
 void 
 CosemApClient::RequestRelease ()
 {
+  NS_LOG_FUNCTION_NOARGS ();
+  NS_ASSERT (m_releaseAAEvent.IsExpired ());
+  Simulator::Cancel (m_releaseAAEvent);
 
+ if (!m_typeRequesting)
+    {
+      NS_LOG_INFO ("Multicast Resquesting Mechanism");
+      // do nothing
+    }
+  else
+    {
+      //  Release one by one the AAs established 
+      if (m_it != m_activeAa.end())
+        {  
+          // Event: Invoke the COSEM-RELEASE.req (NORMAL) service-Start the phase III: Releasing AAs
+          Ptr<Packet> packet = NULL; // dummy packet
+          m_curretCosemApServer = m_it->second;
+          Simulator::Schedule (Seconds (0.0), &CosemAlClient::CosemAcseRelease, m_cosemAlClient, REQUEST, m_curretCosemApServer, packet);
+          m_it ++;
+          m_nSap ++;
+        }
+      else 
+        {
+          NS_LOG_INFO ("All AA have been released!!!"); 
+          m_nSap = 0; 
+        }
+    }
 }
 
 Time
@@ -211,32 +293,17 @@ CosemApClient::SaveActiveAa (Ptr<CosemApServer> cosemApServer)
 void 
 CosemApClient::RemoveActiveAa (Ptr<CosemApServer> cosemApServer)
 {
-  /*// Find the wPort of the current SAP
-  m_it = activeAa.find(sap->get_cs_al_cf()->get_cwS()->get_dst_wport(sap));
+  // Find the wPort of the current SAP
+  m_it = m_activeAa.find(cosemApServer->GetWport ());
 
-  if (active_AAs_.end() != m_it)
+  if (m_activeAa.end () != m_it)
     {
-      delete m_it->second;	// Exists the connection
+       m_activeAa.erase (m_it);	// Exists the connection, so erase it
     } 
   else 
     {
-      return;			// Not Exist the connection
-    }*/
-}
-
-Ptr<CosemApServer> 
-CosemApClient::ReturnActiveAa (uint16_t dstWport)
-{
-  // Find the wport of the current SAP
-  m_it = m_activeAa.find(dstWport);
-	
-  if (m_activeAa.end() != m_it)
-    {
-      return m_it->second;	// Exists SAP
-    } 
-  else 
-    {
-      return 0;		// Not Exist SAP
+      NS_LOG_INFO ("Error: Doesn't exist the AA requested to release!");
+      return;			
     }
 }
 
@@ -347,18 +414,25 @@ CosemApClient::DoDispose (void)
 void 
 CosemApClient::StartApplication (void)
 { 
-  // Create the StartRequest Event
-  m_startRequestEvent = Simulator::Schedule (Seconds (0.0), &CosemApClient::StartRequest, this);
   // Set the iterator at the begining of the container
   m_itSap = m_containerSap.Begin ();   
   // Retreive the total number of SAP that this Cap could resquet
   m_totalNSap = m_containerSap.GetN ();
+  // Event: Create the StartRequest Event
+  m_startRequestEvent = Simulator::Schedule (Seconds (0.0), &CosemApClient::StartRequest, this);
 }
 
 void 
 CosemApClient::StopApplication (void)
 {
-
+   // Cancel Events
+   Simulator::Cancel (m_nextRequestEvent);
+   Simulator::Cancel (m_startRequestEvent); 
+   // Initialize "it" parameter at the first entry in the Map that contains the SAPs that successfully established an AA
+   m_it = m_activeAa.begin(); 	
+   m_nSap = 0;
+   // Event: Release AA established with remote SAPs
+   m_releaseAAEvent = Simulator::Schedule (Seconds (0.0), &CosemApClient::RequestRelease, this);
 }
 
 } // namespace ns3
