@@ -33,8 +33,6 @@ class CosemApServer;
 class CosemApClient;
 class UdpCosemWrapperClient;
 
-//class CosemWrapperClient;	
-
 /** 
  * COSEM Application Layer (AL) Control Function - Client
  *

@@ -90,9 +90,9 @@ public:
   // Retrieve a reference of ApplicationContainer object (Sap)
   void SetApplicationContainerSap (ApplicationContainer containerSap);
 
-  // Set & Get the pointer of the Curret CosemApServer
-  void SetCurretCosemApServer (Ptr<CosemApServer> curretCosemApServer);
-  Ptr<CosemApServer> GetCurretCosemApServer();
+  // Set & Get the pointer of the Current CosemApServer
+  void SetCurrentCosemApServer (Ptr<CosemApServer> CurrentCosemApServer);
+  Ptr<CosemApServer> GetCurrentCosemApServer();
 
   // Set & Get the type of requesting mechanism
   void SetTypeRequesting (bool typeRequesting);
@@ -128,7 +128,7 @@ private:
   uint16_t m_udpPort;  // Udp port
   Address m_localAddress;  // Local Ip address 
   ApplicationContainer m_containerSap; // Container of Sap in the scenario
-  Ptr<CosemApServer> m_curretCosemApServer;  // Pointer of the curret remote SAP 
+  Ptr<CosemApServer> m_currentCosemApServer;  // Pointer of the current remote SAP 
   Time m_nextTimeRequest; // Next time request of data to SAPs
   bool m_typeRequesting;  // Type Requesting mechanism: TRUE = MULTICASTING (simultaneous); FALSE = SEQUENCIAL (Round Robin style)
   uint32_t m_reqData; // The requested Data sent by the remote SAP

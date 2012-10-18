@@ -268,7 +268,7 @@ CosemAlClient::RecvCosemApduUdp (Ptr<Packet> packet)
   // Copy the Cosem APDU Header from the packet
   packet->RemoveHeader (typeHdr);
   ApduType typeAPDU = typeHdr.GetApduType (); 
-  Ptr<CosemApServer> curretSap =  m_cosemApClient->GetCurretCosemApServer ();
+  Ptr<CosemApServer> curretSap =  m_cosemApClient->GetCurrentCosemApServer ();
  
   if (typeAPDU == AARE)
     {

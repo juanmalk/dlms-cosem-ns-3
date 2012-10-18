@@ -70,7 +70,7 @@ UdpCosemWrapperServer::Init ()
     {
       TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
       m_socket = Socket::CreateSocket (m_cosemAlServer->GetCosemApServer ()->GetNode (), tid);
-      InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), m_udpPort);
+      InetSocketAddress local = InetSocketAddress (Ipv4Address::ConvertFrom(m_localAddress), m_udpPort);
       m_socket->Bind (local);
       NS_LOG_INFO ("UDPSocketServer created with Ip " << local);
       // Set the callback method ("Adapt" Recv Udp funtion to UDP-DATA.ind (APDU))

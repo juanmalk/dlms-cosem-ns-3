@@ -186,24 +186,24 @@ CosemApClient::StartRequest ()
         {
           NS_LOG_INFO ("Sequential Resquesting Mechanism (polling)");
           Ptr<Application> app = m_containerSap.Get (m_nSap ++);
-          m_curretCosemApServer = app->GetObject<CosemApServer> ();  // Retrieve the first Saps pointer stored in AppContainer 
+          m_currentCosemApServer = app->GetObject<CosemApServer> ();  // Retrieve the first Saps pointer stored in AppContainer 
           m_itSap ++;  // Increase the value of "it" by one
           /* 
            * Invoke the COSEM-OPEN.req service implemented in CosemClient_AL_CF	
            * in order to establish an AA with a remote server (sap)
            */
           Ptr<Packet> packet = NULL; // dummy packet
-          m_cosemAlClient->CosemAcseOpen (REQUEST, m_curretCosemApServer, packet); 
+          m_cosemAlClient->CosemAcseOpen (REQUEST, m_currentCosemApServer, packet); 
         }
       else 
         {
           if (m_itSap != m_containerSap.End())
             {
               Ptr<Application> app = m_containerSap.Get (m_nSap ++); 
-              m_curretCosemApServer = app->GetObject<CosemApServer> ();  
+              m_currentCosemApServer = app->GetObject<CosemApServer> ();  
               m_itSap ++;  
               Ptr<Packet> packet = NULL; // dummy packet
-              m_cosemAlClient->CosemAcseOpen (REQUEST, m_curretCosemApServer, packet);         
+              m_cosemAlClient->CosemAcseOpen (REQUEST, m_currentCosemApServer, packet);         
             }
           else
             {
@@ -232,8 +232,8 @@ CosemApClient::NewRequest ()
         {  
           // Event: Invoke the COSEM-GET.req (NORMAL) service-Start the phase II: Communication Data
           Ptr<Packet> packet = NULL; // dummy packet
-          m_curretCosemApServer = m_it->second;
-          Simulator::Schedule (Seconds (0.0), &CosemAlClient::CosemXdlmsGet, m_cosemAlClient, GET_NORMAL, REQUEST, m_curretCosemApServer, packet);
+          m_currentCosemApServer = m_it->second;
+          Simulator::Schedule (Seconds (0.0), &CosemAlClient::CosemXdlmsGet, m_cosemAlClient, GET_NORMAL, REQUEST, m_currentCosemApServer, packet);
           m_it ++;
           m_nSap ++;
         }
@@ -264,8 +264,8 @@ CosemApClient::RequestRelease ()
         {  
           // Event: Invoke the COSEM-RELEASE.req (NORMAL) service-Start the phase III: Releasing AAs
           Ptr<Packet> packet = NULL; // dummy packet
-          m_curretCosemApServer = m_it->second;
-          Simulator::Schedule (Seconds (0.0), &CosemAlClient::CosemAcseRelease, m_cosemAlClient, REQUEST, m_curretCosemApServer, packet);
+          m_currentCosemApServer = m_it->second;
+          Simulator::Schedule (Seconds (0.0), &CosemAlClient::CosemAcseRelease, m_cosemAlClient, REQUEST, m_currentCosemApServer, packet);
           m_it ++;
           m_nSap ++;
         }
@@ -362,15 +362,15 @@ CosemApClient::SetApplicationContainerSap (ApplicationContainer containerSap)
 }
 
 void 
-CosemApClient::SetCurretCosemApServer (Ptr<CosemApServer> curretCosemApServer)
+CosemApClient::SetCurrentCosemApServer (Ptr<CosemApServer> currentCosemApServer)
 {
-  m_curretCosemApServer = curretCosemApServer;
+  m_currentCosemApServer = currentCosemApServer;
 }
 
 Ptr<CosemApServer> 
-CosemApClient::GetCurretCosemApServer ()
+CosemApClient::GetCurrentCosemApServer ()
 {
-  return m_curretCosemApServer;
+  return m_currentCosemApServer;
 }
 
 void 
