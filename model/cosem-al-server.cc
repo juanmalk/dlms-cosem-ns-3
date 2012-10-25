@@ -53,6 +53,9 @@ CosemAlServer::CosemAlServer ()
   m_changeStateEvent = EventId ();
   m_sendApduEvent = EventId ();
   m_invokeCosemServiceEvent = EventId ();
+
+  // For debuggin purposes
+  // NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s SAL created!");
 }
 
 CosemAlServer::~CosemAlServer ()
@@ -70,10 +73,14 @@ CosemAlServer::CosemAcseOpen (int typeService, Ptr<Packet> packet)
 
       // Event: Inform to the SAP that a remote CAP has requested an establisment of an AA
       Simulator::Schedule (Seconds (0.0), &CosemApServer::Recv, m_cosemApServer, OPEN, -1, packet); // Check if it really works?????
+      // Event: Change the state of SAL to ASSOCIATION_PENDING
+      m_changeStateEvent = Simulator::Schedule (Seconds (0.0), &CosemAlServer::SetStateCf, this, CF_ASSOCIATION_PENDING);
     }
   else if (typeService == RESPONSE)
     {
-      NS_LOG_INFO ("SAP-->OPEN.res (S)");
+      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s SAP ("<< m_cosemApServer->GetWport () << ":" 
+                                                   << Ipv4Address::ConvertFrom (m_cosemApServer->GetLocalAddress ()) << ")" 
+                                                   << " --> OPEN.res");
       // Argument Ptr<Packet> packet not used
 
       // Event: Construct the AARE APDU of ACSE service 
@@ -94,7 +101,9 @@ CosemAlServer::CosemAcseRelease (int typeService, Ptr<Packet> packet)
     }
   else if (typeService == RESPONSE)
     {
-      NS_LOG_INFO ("SAP-->RELEASE.res (S)");
+      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s SAP ("<< m_cosemApServer->GetWport () << ":" 
+                                                   << Ipv4Address::ConvertFrom (m_cosemApServer->GetLocalAddress ()) << ")" 
+                                                   << " --> RELEASE.res");
       // Argument Ptr<Packet> packet not used
 
       // Event: Construct the RLRE APDU of ACSE service 
@@ -116,35 +125,20 @@ CosemAlServer::CosemXdlmsGet (int typeGet, int typeService, Ptr<Packet> packet, 
           // Event: Inform to the SAP that a remote CAP requested data
           Simulator::Schedule (Seconds (0.0), &CosemApServer::Recv, m_cosemApServer, -1, typeGet, packet); 
         }
-      else
-        {
-          NS_LOG_INFO ("Error: Undefined Cosem Get-Indication type (SAL)");     
-        }    
     }
-  else
-    {
-      NS_LOG_INFO ("Error: Undefined indicaction Cosem service (SAL)");     
-    }
-
+ 
   // .res
   if (typeService == RESPONSE)
     {  
       if (typeGet == GET_NORMAL)
         { 
-           NS_LOG_INFO ("SAP-->GET.res (NORMAL, Data) (S)");	
+           NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s SAP ("<< m_cosemApServer->GetWport () << ":" 
+                                                   << Ipv4Address::ConvertFrom (m_cosemApServer->GetLocalAddress ()) << ")" 
+                                                   << " --> GET.res (NORMAL, Data)");	
 
           // Event: Construct the GET-RESPONSE APDU of xDLMS_ASE service
           m_invokeCosemServiceEvent = Simulator::Schedule (Seconds (0.0), &CosemAlServer::CosemXdlmsApdu, this, typeGet, typeService, data, invokeIdAndPriority);
-
-        }
-      else
-        {
-          NS_LOG_INFO ("Error: Undefined Get-Response Type");     
-        }    
-    }
-  else
-    {
-      NS_LOG_INFO ("Error: Undefined Cosem-Get-Response service");     
+        } 
     }
 }
 
@@ -169,7 +163,10 @@ CosemAlServer::CosemAcseApdu (int typeAcseService, int typeService)
           hdr.SetNegotiatedConformance (0x001010);  // {0x001010}, Based on the example in Annex C IEC 62056-53
           hdr.SetServerMaxReceivePduSize (0x1F4);   // Server_Max_Receive_PDU_Size,{0x1F4}: 500 bytes
           hdr.SetVaaName (0x0007);  // Dummy Value {0x0007}.Taken from page 98 IEC 62056-53
-   
+  
+          // For debugging porpuses
+          NS_LOG_INFO ("APDU size: " << hdr.GetSerializedSize () << "B");
+
           Ptr<Packet> packet = Create<Packet> (hdr.GetSerializedSize ()); // Create the AARE APDU packet
           packet->AddHeader (hdr); // Copy the header into the packet
 
@@ -177,7 +174,9 @@ CosemAlServer::CosemAcseApdu (int typeAcseService, int typeService)
           typeHdr.SetApduType ((ApduType)hdr.GetIdApdu()); // Define the type of APDU
           packet->AddHeader (typeHdr); // Copy the header into the packet
     
-          NS_LOG_INFO ("SAL--> AARE APDU (S)");
+          NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s SAL (" << Ipv4Address::ConvertFrom (m_cosemApServer->GetLocalAddress ()) 
+                                                       << ") --> AARE APDU ("
+                                                       << packet->GetSize () << "B)");
 
           // Event: Change the state of SAL to ASSOCIATED
           m_changeStateEvent = Simulator::Schedule (Seconds (0.0), &CosemAlServer::SetStateCf, this, CF_ASSOCIATED);
@@ -188,10 +187,13 @@ CosemAlServer::CosemAcseApdu (int typeAcseService, int typeService)
         }
       else if (typeAcseService == RELEASE)
         {
-          // Build an RLRQ APDU
+          // Build an RLRE APDU
           CosemRlreHeader hdr;
           hdr.SetReason (0);  // Release request reason, {0, normal}  
-     
+ 
+          // For debugging porpuses
+          NS_LOG_INFO ("APDU size: " << hdr.GetSerializedSize () << "B");
+    
           Ptr<Packet> packet = Create<Packet> (hdr.GetSerializedSize ()); // Create the RLRQ APDU packet
           packet->AddHeader (hdr); // Copy the header into the packet
 
@@ -199,7 +201,9 @@ CosemAlServer::CosemAcseApdu (int typeAcseService, int typeService)
           typeHdr.SetApduType ((ApduType)hdr.GetIdApdu()); // Define the type of APDU
           packet->AddHeader (typeHdr); // Copy the header into the packet
     
-          NS_LOG_INFO ("CAL--> RLRQ APDU (S)");
+          NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s SAL (" << Ipv4Address::ConvertFrom (m_cosemApServer->GetLocalAddress ()) 
+                                                       << ") --> RLRQ APDU ("
+                                                       << packet->GetSize () << "B)");
 
           // Event: Send the APDU to the sub-layer Wrapper (Invoke UDP-DATA.req (APDU))
           double t = (8*hdr.GetSerializedSize ())/(500000) + 2.235e-3; // assuming an ideal PLC channel
@@ -235,6 +239,9 @@ CosemAlServer::CosemXdlmsApdu (int typeGet, int typeService, uint32_t data, uint
           hdr.SetData (data); 
           hdr.SetDataAccessResult (0); // Success {0} 
 
+          // For debugging porpuses
+          NS_LOG_INFO ("APDU size: " << hdr.GetSerializedSize () << "B");
+
           Ptr<Packet> packet = Create<Packet> (hdr.GetSerializedSize ()); // Create the GET-Response (Normal,Data) APDU packet
           packet->AddHeader (hdr); // Copy the header into the packet
 
@@ -242,7 +249,9 @@ CosemAlServer::CosemXdlmsApdu (int typeGet, int typeService, uint32_t data, uint
           typeHdr.SetApduType ((ApduType)hdr.GetIdApdu()); // Define the type of APDU
           packet->AddHeader (typeHdr); // Copy the header into the packet
     
-          NS_LOG_INFO ("SAL--> GET-RES-NOR APDU (S)");
+          NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s SAL (" << Ipv4Address::ConvertFrom (m_cosemApServer->GetLocalAddress ()) 
+                                                       << ") --> GET-RES-NOR APDU ("
+                                                       << packet->GetSize () << "B)");
 
           // Event: Send the APDU to the sub-layer Wrapper (Invoke UDP-DATA.req (APDU))
           double t = (8*hdr.GetSerializedSize ())/(500000) + 2.235e-3;
@@ -279,8 +288,6 @@ CosemAlServer::RecvCosemApduUdp (Ptr<Packet> packet)
       // Extract ASSOCIATE.ind and xDLMS-Initiate.ind parameters (information not used at the moment)
       CosemAarqHeader hdr;
       packet->RemoveHeader (hdr);
-      // Event: Change the state of SAL to ASSOCIATION_PENDING
-      m_changeStateEvent = Simulator::Schedule (Seconds (0.0), &CosemAlServer::SetStateCf, this, CF_ASSOCIATION_PENDING);
       // Event: Invoke COSEM-OPEN.ind service
       m_invokeCosemServiceEvent = Simulator::Schedule (Seconds (0.0), &CosemAlServer::CosemAcseOpen, this, INDICATION, packet);
     }
@@ -341,28 +348,32 @@ CosemAlServer::SetStateCf (int state)
   if (state == CF_IDLE)
     {
       m_stateCf = state;
-      NS_LOG_INFO ("SAL-->IDLE (C)");
-      Ptr<Socket> skt = m_cosemWrapperServer->GetSocket ();
+      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s SAL (" << Ipv4Address::ConvertFrom (m_cosemWrapperServer->GetLocalAddress ()) 
+                                                   << ") --> IDLE");
+     /* Ptr<Socket> skt = m_cosemWrapperServer->GetSocket ();
       if (skt != 0) 
         {
           Simulator::Schedule (Seconds (0.00001), &Socket::Close, skt); // Close a socket
           NS_LOG_INFO ("Socket closed!!");
-        }
+        }*/
     } 
   else if (state == CF_ASSOCIATION_PENDING)    
       {
         m_stateCf = state;
-        NS_LOG_INFO ("SAL-->ASSOCIATION_PENDING (C)");
+        NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s SAL (" << Ipv4Address::ConvertFrom (m_cosemWrapperServer->GetLocalAddress ())
+                                                     << ") --> ASSOCIATION_PENDING");
       }
   else if (state == CF_ASSOCIATED)    
       {
         m_stateCf = state;
-        NS_LOG_INFO ("SAL-->ASSOCIATED (C)");
+        NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s SAL (" << Ipv4Address::ConvertFrom (m_cosemWrapperServer->GetLocalAddress ()) 
+                                                     << ") --> ASSOCIATED");
       } 
   else if (state == CF_ASSOCIATION_RELEASE_PENDING)    
       {
         m_stateCf = state;
-        NS_LOG_INFO ("SAL-->ASSOCIATION_RELEASE_PENDING (C)");
+        NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s SAL (" << Ipv4Address::ConvertFrom (m_cosemWrapperServer->GetLocalAddress ()) 
+                                                     << ") --> ASSOCIATION_RELEASE_PENDING");
       } 
   else
     {

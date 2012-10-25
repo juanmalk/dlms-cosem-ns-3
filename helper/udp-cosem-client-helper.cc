@@ -23,6 +23,7 @@
 #include "ns3/ipv4-interface-container.h"
 #include "ns3/object-factory.h"
 #include "ns3/node-container.h"
+#include "ns3/nstime.h"
 #include "ns3/uinteger.h"
 #include "ns3/string.h"
 #include "udp-cosem-client-helper.h"
@@ -35,10 +36,11 @@ UdpCosemClientHelper::UdpCosemClientHelper ()
 {
 }
 
-UdpCosemClientHelper::UdpCosemClientHelper (ApplicationContainer CosemApServerContainer, Ipv4InterfaceContainer interface)
+UdpCosemClientHelper::UdpCosemClientHelper (ApplicationContainer CosemApServerContainer, Ipv4InterfaceContainer interface, Time interval)
 {
   m_cosemApServerContainer = CosemApServerContainer;
   m_interface = interface;
+  m_interval = interval;
 }
 
 void
@@ -57,10 +59,12 @@ UdpCosemClientHelper::Install (NodeContainer c)
       // Retreive the pointer of the i-node storaged in the NodeContainer
       Ptr<Node> node = *i;  
       // Add the CosemClientStack to the Node (i.e. UdpCosemWrapperClient & CosemAlClient)
-      AddCosemClientStack (node);
+      AddCosemClientStack (node, j);
 
       // Create a CosemApClientObject
-      Ptr<CosemApClient> cosemApClient =  m_factory.Create<CosemApClient> ();
+      //Ptr<CosemApClient> cosemApClient =  m_factory.Create<CosemApClient> ();
+      Ptr<CosemApClient> cosemApClient = CreateObject<CosemApClient> ();
+
       // Retrieve the pointer of the CosemAlClient that has previously aggregated to the node
       Ptr<CosemAlClient> cosemAlClient = node->GetObject<CosemAlClient> ();
       // Retrieve the pointer of the UdpCosemWrapperClient that has previously aggregated to the node
@@ -79,12 +83,12 @@ UdpCosemClientHelper::Install (NodeContainer c)
       cosemApClient->SetApplicationContainerSap (m_cosemApServerContainer);
       // Add the CosemApClient created to the ApplicationContainer
       apps.Add (cosemApClient);
-     
+
+      // Set interval for requesting data to remote SAPs
+      cosemApClient->SetNextTimeRequest (m_interval);
       // Connect CosemAlClient and cosemApClient to each other
       cosemAlClient->SetCosemApClient (cosemApClient);
       cosemApClient->SetCosemAlClient (cosemAlClient);
-      // Retreive the Ip address assigned to the node (UdpCosemWrapperClient)
-      udpCosemWrapperClient->SetLocalAddress (m_interface.GetAddress(j)); 
      
       j++;  
     }
@@ -92,22 +96,23 @@ UdpCosemClientHelper::Install (NodeContainer c)
 }
 
 void 
-UdpCosemClientHelper::AddCosemClientStack (Ptr<Node> node)
+UdpCosemClientHelper::AddCosemClientStack (Ptr<Node> node, uint32_t j)
 {
-  // Create a CosemApClientObject
+  // Create a UdpCosemWrapperClient
   Ptr<UdpCosemWrapperClient> udpCosemWrapperClient = CreateObject<UdpCosemWrapperClient> ();
-  // Aggregate the UdpCosemWrapperClient to the node and set the Udp Port number 
-  node->AggregateObject (udpCosemWrapperClient);
-  udpCosemWrapperClient->SetUdpport (4056);
-  // Create a CosemAlClient Object and set its state to CF_IDLE and Udp Port number
+  // Create a CosemAlClient Object 
   Ptr<CosemAlClient> cosemAlClient = CreateObject<CosemAlClient> ();
-  cosemAlClient->SetStateCf (1);
-  cosemAlClient->SetUdpport (4056);
-  // Aggregate the CosemAlClient to the node
-  node->AggregateObject (cosemAlClient);
   // Connect UdpCosemWrapperClient and CosemAlClient to each other
   udpCosemWrapperClient->SetCosemAlClient (cosemAlClient);      
   cosemAlClient->SetCosemWrapperClient (udpCosemWrapperClient);
+  // Aggregate the UdpCosemWrapperClient to the node and set Ip Address and Udp Port number 
+  node->AggregateObject (udpCosemWrapperClient);
+  udpCosemWrapperClient->SetUdpport (4056);
+  udpCosemWrapperClient->SetLocalAddress (m_interface.GetAddress(j)); 
+  // Aggregate the CosemAlClient to the node and set its state to CF_IDLE and Udp Port number 
+  node->AggregateObject (cosemAlClient);
+  cosemAlClient->SetStateCf (1);
+  cosemAlClient->SetUdpport (4056);
 }
 
 } // namespace ns3

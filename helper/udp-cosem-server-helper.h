@@ -50,7 +50,7 @@ public:
   ApplicationContainer Install (NodeContainer c);
   
   // Create and Aggregate the CosemServer Stack to the node ("physical device")
-  void AddCosemServerStack (Ptr<Node> node);
+  void AddCosemServerStack (Ptr<Node> node, uint32_t j);
 
 private:
       

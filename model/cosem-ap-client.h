@@ -62,9 +62,6 @@ public:
   //Request the Release of AAs
   void RequestRelease ();
 
-  // Compute and return the next time that the Client(DC) requests to the Servers (SmartMeter,SM)
-  Time NextTimeRequestSm ();
-
   // Store the AAs succesfully established
   void SaveActiveAa (Ptr<CosemApServer> cosemApServer);
 	

@@ -55,6 +55,9 @@ UdpCosemWrapperServer::UdpCosemWrapperServer ()
   m_wPortCap = 0;
   m_udpPort = 4056;
   m_adaptCosemUdpserviceEvent = EventId ();
+
+ // For debugging purporse
+ // NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CWS created!");
 }
 
 UdpCosemWrapperServer::~UdpCosemWrapperServer ()
@@ -72,9 +75,11 @@ UdpCosemWrapperServer::Init ()
       m_socket = Socket::CreateSocket (m_cosemAlServer->GetCosemApServer ()->GetNode (), tid);
       InetSocketAddress local = InetSocketAddress (Ipv4Address::ConvertFrom(m_localAddress), m_udpPort);
       m_socket->Bind (local);
-      NS_LOG_INFO ("UDPSocketServer created with Ip " << local);
       // Set the callback method ("Adapt" Recv Udp funtion to UDP-DATA.ind (APDU))
       m_socket->SetRecvCallback (MakeCallback (&UdpCosemWrapperServer::Recv, this));
+
+      // For debugging purporses
+      // NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s UDPSocketServer created with Ip " << Ipv4Address::ConvertFrom (m_localAddress));
     }
 }
 
@@ -86,15 +91,13 @@ UdpCosemWrapperServer::Recv (Ptr<Socket> socket)
   Ptr<Packet> packet;
   Address from;
   CosemWrapperHeader hdr;
-  Ipv4Header iph;
   // Retreive the packet sent by the Remote Client and copy the Wrapper Header from the packet
   packet = socket->RecvFrom (from);  
   packet->RemoveHeader (hdr);
   // Retreive the wPort of the Remote Client 
   m_wPortCap = hdr.GetSrcwPort ();
   // Retreive Remote Ip address
-  packet->RemoveHeader (iph);
-  m_remoteAddress = Address (iph.GetSource ());
+  m_remoteAddress = Address (InetSocketAddress::ConvertFrom (from).GetIpv4 ());
   // Adapt RECEIVE UDP function to UDP-DATA.ind (APDU) service
   m_adaptCosemUdpserviceEvent = Simulator::Schedule (Seconds (0.0), &UdpCosemWrapperServer::AdaptCosemUdpServices, this, INDICATION, packet);
 }
@@ -102,14 +105,25 @@ UdpCosemWrapperServer::Recv (Ptr<Socket> socket)
 void
 UdpCosemWrapperServer::Send (Ptr<Packet> packet)
 {
+
+  // Connect the SAP with the remote CAP 
+  if (Ipv4Address::IsMatchingType(m_remoteAddress) == true)
+    {
+      m_socket->Connect (InetSocketAddress (Ipv4Address::ConvertFrom(m_remoteAddress), m_udpPort)); // m_udpPort same as Client
+      // For debugging purporses
+      // NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s Server connected with Client " << Ipv4Address::ConvertFrom(m_remoteAddress));
+    }
+
   // Add Wrapper header
   CosemWrapperHeader hdr;
   hdr.SetSrcwPort (m_wPortSap); 
   hdr.SetDstwPort (m_wPortCap); 
   hdr.SetLength (packet->GetSize ()); 
   packet->AddHeader (hdr); 
+
   // Adapt UDP-DATA.req (APDU) service to SEND UDP function
   m_adaptCosemUdpserviceEvent = Simulator::Schedule (Seconds (0.0), &UdpCosemWrapperServer::AdaptCosemUdpServices, this, REQUEST, packet);
+
 }
 
 void 
@@ -121,15 +135,17 @@ UdpCosemWrapperServer::AdaptCosemUdpServices (int type_service, Ptr<Packet> pack
   if (type_service == INDICATION)
     {
       // Pass the information to the SAL ("inoke" UDP-DATA.ind (APDU))
-      NS_LOG_INFO ("CW-S --> RECEIVE" << m_wPortCap << "--> UDP-DATA.ind (APDU)");
+      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CW-S --> RECEIVE ("
+                                                   << packet->GetSize () << "B)" << "--> UDP-DATA.ind (APDU)");  
       m_cosemAlServer->RecvCosemApduUdp (packet);
     }
 
   if (type_service == REQUEST)
     {
       // Call SEND Udp function (through UdpSocket)
-      m_socket->SendTo (packet, 0, m_remoteAddress);
-      NS_LOG_INFO ("CW-C --> UDP-DATA.req (APDU) --> SEND");
+      m_socket->Send (packet);
+      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CW-S --> UDP-DATA.req (APDU) --> SEND ("
+                                                   << packet->GetSize () << "B)"); 
     }
 }
 

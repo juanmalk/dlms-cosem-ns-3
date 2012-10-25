@@ -47,6 +47,9 @@ CosemApServer::CosemApServer ()
   NS_LOG_FUNCTION_NOARGS ();
   m_wPort = 0;
   m_udpPort = 0;
+ 
+  // For debugging purposes
+  // NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s SAP created!");
 }
 
 CosemApServer::~CosemApServer ()
@@ -60,8 +63,8 @@ CosemApServer::Recv (int typeAcseService, int typeGet, Ptr<Packet> packet)
   // COSEM ACSE services: COSEM-OPEN.ind & COSEM-RELEASE.ind
   if (typeAcseService == OPEN)
     { 
-      NS_LOG_INFO ("SAL-->OPEN.ind (S)");
-  
+      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s SAL (" << Ipv4Address::ConvertFrom (m_localAddress) << ") --> OPEN.ind");
+
       // "Receive" the xDLMS-Initiate.ind (information not used at the moment)
       CosemAarqHeader hdr;
       packet->RemoveHeader (hdr);
@@ -69,9 +72,10 @@ CosemApServer::Recv (int typeAcseService, int typeGet, Ptr<Packet> packet)
       // Event: Invoke the COSEM-OPEN.res service
       Simulator::Schedule (Seconds (0.0), &CosemAlServer::CosemAcseOpen, m_cosemAlServer, RESPONSE, packet); 
     }
-  else if (typeAcseService == RELEASE)
+  
+  if (typeAcseService == RELEASE)
     {
-      NS_LOG_INFO ("SAL-->RELEASE.ind (S)");
+      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s SAL (" << Ipv4Address::ConvertFrom (m_localAddress) << ") --> RELEASE.ind");
 
       // Extract the Release-Request-Reason (information not used at the moment)
       CosemRlrqHeader hdr;
@@ -81,15 +85,11 @@ CosemApServer::Recv (int typeAcseService, int typeGet, Ptr<Packet> packet)
       // Event: Invoke the COSEM-RELEASE.res service
       Simulator::Schedule (Seconds (0.0), &CosemAlServer::CosemAcseRelease, m_cosemAlServer, RESPONSE, packet);  
     }  
-  else
-    {
-      NS_LOG_ERROR ("Error: Undefined ACSE Service Type (SAP)");     
-    }   
 
   // COSEM-GET.ind 
   if (typeGet == GET_NORMAL)
     { 
-      NS_LOG_INFO ("SAL-->GET.ind (NORMAL) (S)");
+      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s SAL (" << Ipv4Address::ConvertFrom (m_localAddress) << ") --> GET.ind (NORMAL)");
 
       // Extract invoke-id-and-priority & cosem-attribute-descriptor parameters
       CosemGetRequestNormalHeader hdr;
@@ -104,10 +104,6 @@ CosemApServer::Recv (int typeAcseService, int typeGet, Ptr<Packet> packet)
       // Event: Invoke the COSEM-GET.res (NORMAL, Data) service
       Simulator::Schedule (Seconds (0.0), &CosemAlServer::CosemXdlmsGet, m_cosemAlServer, GET_NORMAL, RESPONSE, packet, data, hdr.GetInvokeIdAndPriority ()); 
     }
-  else
-    {
-      NS_LOG_ERROR ("Error: Undefined COSEM GET Type service (SAP)");     
-    }    
 }
 
 Ptr<Node>

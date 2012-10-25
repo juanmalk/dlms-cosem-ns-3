@@ -56,10 +56,10 @@ UdpCosemServerHelper::Install (NodeContainer c)
       // Retreive the pointer of the i-node storaged in the NodeContainer
       Ptr<Node> node = *i;  
       // Add the CosemServerStack to the Node (i.e. UdpCosemWrapperServer & CosemAlServer)
-      AddCosemServerStack (node);
+      AddCosemServerStack (node, j);
 
       // Create a CosemApServerObject
-      Ptr<CosemApServer> cosemApServer =  m_factory.Create<CosemApServer> ();
+      Ptr<CosemApServer> cosemApServer = CreateObject<CosemApServer> ();
       // Retrieve the pointer of the CosemAlServer that has previously aggregated to the node
       Ptr<CosemAlServer> cosemAlServer = node->GetObject<CosemAlServer> ();
       // Retrieve the pointer of the UdpCosemWrapperServer that has previously aggregated to the node
@@ -80,8 +80,6 @@ UdpCosemServerHelper::Install (NodeContainer c)
       // Connect CosemAlServer and cosemApServer to each other
       cosemAlServer->SetCosemApServer (cosemApServer);
       cosemApServer->SetCosemAlServer (cosemAlServer);
-      // Retreive the Ip address assigned to the node (UdpCosemWrapperServer)
-      udpCosemWrapperServer->SetLocalAddress (m_interface.GetAddress(j)); 
      
       j++;  
     }
@@ -89,22 +87,23 @@ UdpCosemServerHelper::Install (NodeContainer c)
 }
 
 void 
-UdpCosemServerHelper::AddCosemServerStack (Ptr<Node> node)
+UdpCosemServerHelper::AddCosemServerStack (Ptr<Node> node, uint32_t j)
 {
-  // Create a CosemApServerObject
+  // Create a UdpCosemWrapperServer
   Ptr<UdpCosemWrapperServer> udpCosemWrapperServer = CreateObject<UdpCosemWrapperServer> ();
-  // Aggregate the UdpCosemWrapperServer to the node and set the Udp Port number 
-  node->AggregateObject (udpCosemWrapperServer);
-  udpCosemWrapperServer->SetUdpport (4056);
-  // Create a CosemAlServer Object and set its state to CF_IDLE and Udp Port number
+  // Create a CosemAlServer Object 
   Ptr<CosemAlServer> cosemAlServer = CreateObject<CosemAlServer> ();
-  cosemAlServer->SetStateCf (1);
-  cosemAlServer->SetUdpport (4056);
-  // Aggregate the CosemAlServer to the node
-  node->AggregateObject (cosemAlServer);
   // Connect UdpCosemWrapperServer and CosemAlServer to each other
   udpCosemWrapperServer->SetCosemAlServer (cosemAlServer);      
   cosemAlServer->SetCosemWrapperServer (udpCosemWrapperServer);
+  // Aggregate the UdpCosemWrapperServer to the node and set Ip Address and Udp Port number 
+  node->AggregateObject (udpCosemWrapperServer);
+  udpCosemWrapperServer->SetUdpport (4056);
+  udpCosemWrapperServer->SetLocalAddress (m_interface.GetAddress(j)); 
+  // Aggregate the CosemAlServer to the node and set its state to CF_IDLE and Udp Port number 
+  node->AggregateObject (cosemAlServer);
+  cosemAlServer->SetStateCf (1);
+  cosemAlServer->SetUdpport (4056);
 }
 
 } // namespace ns3

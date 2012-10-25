@@ -58,6 +58,9 @@ CosemApClient::CosemApClient ()
   m_nSap = 0;
   m_totalNSap = 0; 
   m_enableNewRQ = 0;   
+
+  // For debugging purposes
+  //NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAP created!");
 }
 
 CosemApClient::~CosemApClient ()
@@ -71,7 +74,10 @@ CosemApClient::Recv (Ptr<Packet> packet, int typeAcseService, int typeGet, Ptr<C
   // COSEM ACSE services: COSEM-OPEN.cnf & COSEM-RELEASE.cnf 
   if (typeAcseService == OPEN)
     { 
-      NS_LOG_INFO ("CAL-->OPEN.cnf(Ok) (S)");
+      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAP ("<< m_wPort << ":" << Ipv4Address::ConvertFrom (m_localAddress) <<")" 
+                                                   << " --> AA established with SAP (" << cosemApServer->GetWport () << ":"
+                                                   << Ipv4Address::ConvertFrom (cosemApServer->GetLocalAddress ()) << ")");
+      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAL (" << Ipv4Address::ConvertFrom (m_localAddress) << ") --> OPEN.cnf(Ok)");
 
       // "Receive" the xDLMS-Initiate.res (information not used at the moment)
       CosemAareHeader hdr;
@@ -84,9 +90,10 @@ CosemApClient::Recv (Ptr<Packet> packet, int typeAcseService, int typeGet, Ptr<C
       Ptr<Packet> packet = NULL; // dummy packet
       Simulator::Schedule (Seconds (0.0), &CosemAlClient::CosemXdlmsGet, m_cosemAlClient, GET_NORMAL, REQUEST, cosemApServer, packet);
     }
-  else if (typeAcseService == RELEASE)
+  
+  if (typeAcseService == RELEASE)
     {
-      NS_LOG_INFO ("CAL-->RELEASE.cnf (S)");
+      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAL (" << Ipv4Address::ConvertFrom (m_localAddress) << ") --> RELEASE.cnf");
 
       // Extract the Release-Response-Reason 
       CosemRlreHeader hdr;
@@ -98,16 +105,20 @@ CosemApClient::Recv (Ptr<Packet> packet, int typeAcseService, int typeGet, Ptr<C
           // Remove the AA successfully established before with this remote SAP
           RemoveActiveAa (cosemApServer);
 
-          NS_LOG_INFO ("CAP (id = "<< m_wPort <<")" << "has released the AA with SAP (id = " << cosemApServer->GetWport () << ")");       
+          NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAP ("<< m_wPort << ":" << Ipv4Address::ConvertFrom (m_localAddress) <<")" 
+                                                       << " has released the AA with SAP (" << cosemApServer->GetWport () << ":"
+                                                       << Ipv4Address::ConvertFrom (cosemApServer->GetLocalAddress ()) << ")");       
         }
       else
         {
-          NS_LOG_ERROR ("Release AA action rejected by SAP (id = " << cosemApServer->GetWport () << ")"); 
+          NS_LOG_ERROR ("Release AA action rejected by SAP (" << cosemApServer->GetWport () << ":"
+                                                       << Ipv4Address::ConvertFrom (cosemApServer->GetLocalAddress ()) << ")"); 
         }
 
       if (m_nSap == m_totalNSap)
         {
-          NS_LOG_INFO ("CAP (id = "<< m_wPort <<")" << "has finished the releasing process!");
+          NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAP ("<< m_wPort << ":" << Ipv4Address::ConvertFrom (m_localAddress) <<")" 
+                                                       << " has finished the releasing process!");
 
           // Event: Change the state of CAL to IDLE
           EventId changeStateEvent = Simulator::Schedule (Seconds (0.0), &CosemAlClient::SetStateCf, m_cosemAlClient, CF_IDLE);
@@ -119,33 +130,31 @@ CosemApClient::Recv (Ptr<Packet> packet, int typeAcseService, int typeGet, Ptr<C
           m_releaseAAEvent = Simulator::Schedule (Seconds (0.0), &CosemApClient::RequestRelease, this);
         }
     }     
-  else
-    {
-      NS_LOG_ERROR ("Error: Undefined ACSE Service Type (CAP)");     
-    }  
 
   // COSEM-GET.cnf (NORMAL, Data)
   if (typeGet == GET_NORMAL)
     { 
-      NS_LOG_INFO ("CAL-->Get.cnf(Normal, Data) (S)");
+      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAL (" << Ipv4Address::ConvertFrom (m_localAddress) << ") --> Get.cnf(Normal, Data)");
 
       // Extract the requested data
       CosemGetResponseNormalHeader hdr;
       packet->RemoveHeader (hdr);
       m_reqData = hdr.GetData ();
       m_sizeReqData = hdr.GetSerializedSize ();
-      NS_LOG_INFO ("CAP (id = "<< m_wPort <<")" << "has received data from the SAP (id = " << cosemApServer->GetWport () << ")");
+      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAP CAP ("<< m_wPort << ":" << Ipv4Address::ConvertFrom (m_localAddress) <<")" 
+                                                   << " has received data from the SAP (id = " << cosemApServer->GetWport () << ")");
 
     // Set a timer that permits to request new data to the SMs (SAPs)
     if (m_nSap == m_totalNSap)
       { 
-        NS_LOG_INFO ("CAP (id = "<< m_wPort <<")" << "has finished the requesting process!");
+        NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAP ("<< m_wPort << ":" << Ipv4Address::ConvertFrom (m_localAddress) <<")" 
+                                                     << " has finished the requesting process!");
        
         // Set a delay to request new data to the SMs 
-	m_nextRequestEvent = Simulator::Schedule (Seconds (NextTimeRequestSm ()), &CosemApClient::NewRequest, this); 
-
+        m_nextRequestEvent = Simulator::Schedule (GetNextTimeRequest (), &CosemApClient::NewRequest, this); 
         // Initialize "it" parameter at the first entry in the Map that contains the SAPs that successfully established an AA
         m_it = m_activeAa.begin(); 
+        m_nSap = 0;
         m_enableNewRQ = 1;	
       }
     else
@@ -162,10 +171,6 @@ CosemApClient::Recv (Ptr<Packet> packet, int typeAcseService, int typeGet, Ptr<C
           }   
        }
     }
-  else
-    {
-      NS_LOG_ERROR ("Error: Undefined COSEM GET Type (SAP)");     
-    }  
 }
 
 void 
@@ -175,16 +180,18 @@ CosemApClient::StartRequest ()
   NS_ASSERT (m_startRequestEvent.IsExpired ());
   Simulator::Cancel (m_startRequestEvent);
  
-  if (!m_typeRequesting)
+  if (m_typeRequesting)
     {
-      NS_LOG_INFO ("Multicast Resquesting Mechanism");
+      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s Multicast Resquesting Mechanism");
       // do nothing
     }
   else
     {
       if (m_itSap == m_containerSap.Begin ())
         {
-          NS_LOG_INFO ("Sequential Resquesting Mechanism (polling)");
+          NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s Sequential Resquesting Mechanism (polling by CAP ("<< m_wPort << ":" 
+                                                       << Ipv4Address::ConvertFrom (m_localAddress) << "))");
+
           Ptr<Application> app = m_containerSap.Get (m_nSap ++);
           m_currentCosemApServer = app->GetObject<CosemApServer> ();  // Retrieve the first Saps pointer stored in AppContainer 
           m_itSap ++;  // Increase the value of "it" by one
@@ -194,6 +201,10 @@ CosemApClient::StartRequest ()
            */
           Ptr<Packet> packet = NULL; // dummy packet
           m_cosemAlClient->CosemAcseOpen (REQUEST, m_currentCosemApServer, packet); 
+          NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAP ("<< m_wPort << ":" << Ipv4Address::ConvertFrom (m_localAddress) <<")" 
+                                                       << " has requested an AA establishment to SAP (" 
+                                                       << m_currentCosemApServer->GetWport () << ":" 
+                                                       << Ipv4Address::ConvertFrom (m_currentCosemApServer->GetLocalAddress ()) << ")"); 
         }
       else 
         {
@@ -203,7 +214,11 @@ CosemApClient::StartRequest ()
               m_currentCosemApServer = app->GetObject<CosemApServer> ();  
               m_itSap ++;  
               Ptr<Packet> packet = NULL; // dummy packet
-              m_cosemAlClient->CosemAcseOpen (REQUEST, m_currentCosemApServer, packet);         
+              m_cosemAlClient->CosemAcseOpen (REQUEST, m_currentCosemApServer, packet);   
+              NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAP ("<< m_wPort << ":" << Ipv4Address::ConvertFrom (m_localAddress) <<")" 
+                                                       << " has requested an AA establishment to SAP (" 
+                                                       << m_currentCosemApServer->GetWport () << ":" 
+                                                       << Ipv4Address::ConvertFrom (m_currentCosemApServer->GetLocalAddress ()) << ")");      
             }
           else
             {
@@ -220,9 +235,9 @@ CosemApClient::NewRequest ()
   NS_ASSERT (m_nextRequestEvent.IsExpired ());
   Simulator::Cancel (m_nextRequestEvent);
 
-  if (!m_typeRequesting)
+  if (m_typeRequesting)
     {
-      NS_LOG_INFO ("Multicast Resquesting Mechanism");
+      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s Multicast Resquesting Mechanism");
       // do nothing
     }
   else
@@ -236,6 +251,11 @@ CosemApClient::NewRequest ()
           Simulator::Schedule (Seconds (0.0), &CosemAlClient::CosemXdlmsGet, m_cosemAlClient, GET_NORMAL, REQUEST, m_currentCosemApServer, packet);
           m_it ++;
           m_nSap ++;
+
+          NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAP ("<< m_wPort << ":" << Ipv4Address::ConvertFrom (m_localAddress) <<")" 
+                                                       << " has requested new data to the SAP (" 
+                                                       << m_currentCosemApServer->GetWport () << ":" 
+                                                       << Ipv4Address::ConvertFrom (m_currentCosemApServer->GetLocalAddress ()) << ")"); 
         }
       else 
         {
@@ -252,9 +272,9 @@ CosemApClient::RequestRelease ()
   NS_ASSERT (m_releaseAAEvent.IsExpired ());
   Simulator::Cancel (m_releaseAAEvent);
 
- if (!m_typeRequesting)
+ if (m_typeRequesting)
     {
-      NS_LOG_INFO ("Multicast Resquesting Mechanism");
+      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s Multicast Resquesting Mechanism");
       // do nothing
     }
   else
@@ -268,19 +288,18 @@ CosemApClient::RequestRelease ()
           Simulator::Schedule (Seconds (0.0), &CosemAlClient::CosemAcseRelease, m_cosemAlClient, REQUEST, m_currentCosemApServer, packet);
           m_it ++;
           m_nSap ++;
+
+          NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAP ("<< m_wPort << ":" << Ipv4Address::ConvertFrom (m_localAddress) <<")" 
+                                                       << " has requested an AA release to the SAP (" 
+                                                       << m_currentCosemApServer->GetWport () << ":" 
+                                                       << Ipv4Address::ConvertFrom (m_currentCosemApServer->GetLocalAddress ()) << ")");  
         }
       else 
         {
-          NS_LOG_INFO ("All AA have been released!!!"); 
+          NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s All AA have been released!!!"); 
           m_nSap = 0; 
         }
     }
-}
-
-Time
-CosemApClient::NextTimeRequestSm ()
-{
-  return m_nextTimeRequest;
 }
 
 void 

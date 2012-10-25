@@ -32,6 +32,7 @@ class Ipv4InterfaceContainer;
 class ObjectFactory;
 class NodeContainer;
 class Node;
+class Time;
 
 class UdpCosemClientHelper
 {
@@ -39,7 +40,7 @@ public:
 
   UdpCosemClientHelper ();
 
-  UdpCosemClientHelper (ApplicationContainer CosemApServerContainer, Ipv4InterfaceContainer interface);
+  UdpCosemClientHelper (ApplicationContainer CosemApServerContainer, Ipv4InterfaceContainer interface, Time interval);
 
   // Record an attribute to be set in each Application after it is is created
   void SetAttribute (std::string name, const AttributeValue &value);
@@ -51,12 +52,13 @@ public:
   ApplicationContainer Install (NodeContainer c);
   
   // Create and Aggregate the CosemClient Stack to the node ("physical device")
-  void AddCosemClientStack (Ptr<Node> node);
+  void AddCosemClientStack (Ptr<Node> node,  uint32_t j);
 
 private:
       
   ApplicationContainer m_cosemApServerContainer;
   Ipv4InterfaceContainer m_interface;
+  Time m_interval;
   ObjectFactory m_factory;
 };
 
