@@ -56,7 +56,7 @@ UdpCosemWrapperClient::UdpCosemWrapperClient ()
   EventId m_adaptCosemUdpserviceEvent = EventId ();
 
   // For debugging purposes
-  //NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CWC created!");
+  // NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CWC created!");
 }
 
 UdpCosemWrapperClient::~UdpCosemWrapperClient ()
@@ -136,14 +136,16 @@ UdpCosemWrapperClient::AdaptCosemUdpServices (int type_service, Ptr<Packet> pack
     {
       // Call SEND Udp function (through UdpSocket)
       m_socket->Send (packet); 
-      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CW-C --> UDP-DATA.req (APDU) --> SEND ("
+      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CW-C (" << Ipv4Address::ConvertFrom (m_localAddress) 
+                                                   << ") --> UDP-DATA.req (APDU) --> SEND ("
                                                    << packet->GetSize () << "B)");
     }
 
   if (type_service == INDICATION)
     {
       // Pass the information to the CAL ("inoke" UDP-DATA.ind (APDU))
-      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CW-C --> RECEIVE ("
+      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CW-C (" << Ipv4Address::ConvertFrom (m_localAddress) 
+                                                   << ") --> RECEIVE ("
                                                    << packet->GetSize () << "B)" << "--> UDP-DATA.ind (APDU)");
       m_cosemAlClient->RecvCosemApduUdp (packet);
     }

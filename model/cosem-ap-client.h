@@ -143,7 +143,7 @@ private:
   EventId m_nextRequestEvent;
   EventId m_releaseAAEvent;
   std::vector<Ptr<Application> >::const_iterator m_itSap; // Iterator AppContainer
-  uint32_t m_nSap;  // Number of Saps 
+  uint16_t m_nSap;  // Number of Saps 
   uint32_t m_totalNSap;  // Total Number of Saps   
   uint8_t m_enableNewRQ;         
 };

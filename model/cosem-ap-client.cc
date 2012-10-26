@@ -60,7 +60,7 @@ CosemApClient::CosemApClient ()
   m_enableNewRQ = 0;   
 
   // For debugging purposes
-  //NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAP created!");
+  // NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAP created!");
 }
 
 CosemApClient::~CosemApClient ()
@@ -75,7 +75,7 @@ CosemApClient::Recv (Ptr<Packet> packet, int typeAcseService, int typeGet, Ptr<C
   if (typeAcseService == OPEN)
     { 
       NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAP ("<< m_wPort << ":" << Ipv4Address::ConvertFrom (m_localAddress) <<")" 
-                                                   << " --> AA established with SAP (" << cosemApServer->GetWport () << ":"
+                                                   << " has established AA with SAP (" << cosemApServer->GetWport () << ":"
                                                    << Ipv4Address::ConvertFrom (cosemApServer->GetLocalAddress ()) << ")");
       NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAL (" << Ipv4Address::ConvertFrom (m_localAddress) << ") --> OPEN.cnf(Ok)");
 
@@ -141,8 +141,10 @@ CosemApClient::Recv (Ptr<Packet> packet, int typeAcseService, int typeGet, Ptr<C
       packet->RemoveHeader (hdr);
       m_reqData = hdr.GetData ();
       m_sizeReqData = hdr.GetSerializedSize ();
-      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAP CAP ("<< m_wPort << ":" << Ipv4Address::ConvertFrom (m_localAddress) <<")" 
-                                                   << " has received data from the SAP (id = " << cosemApServer->GetWport () << ")");
+      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAP ("<< m_wPort << ":" << Ipv4Address::ConvertFrom (m_localAddress) <<")" 
+                                                   << " has received " << m_sizeReqData << "B of data from the  SAP (" 
+                                                   << cosemApServer->GetWport () << ":"
+                                                   << Ipv4Address::ConvertFrom (cosemApServer->GetLocalAddress ()) << ")");
 
     // Set a timer that permits to request new data to the SMs (SAPs)
     if (m_nSap == m_totalNSap)
@@ -150,12 +152,14 @@ CosemApClient::Recv (Ptr<Packet> packet, int typeAcseService, int typeGet, Ptr<C
         NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAP ("<< m_wPort << ":" << Ipv4Address::ConvertFrom (m_localAddress) <<")" 
                                                      << " has finished the requesting process!");
        
+        // Initialize "it" parameter at the first entry in the Map that contains the SAPs that successfully established an AA
+        m_it = m_activeAa.begin (); 
+        m_nSap = 0;
+        m_enableNewRQ = 1;
+
         // Set a delay to request new data to the SMs 
         m_nextRequestEvent = Simulator::Schedule (GetNextTimeRequest (), &CosemApClient::NewRequest, this); 
-        // Initialize "it" parameter at the first entry in the Map that contains the SAPs that successfully established an AA
-        m_it = m_activeAa.begin(); 
-        m_nSap = 0;
-        m_enableNewRQ = 1;	
+        	
       }
     else
       {
@@ -201,6 +205,7 @@ CosemApClient::StartRequest ()
            */
           Ptr<Packet> packet = NULL; // dummy packet
           m_cosemAlClient->CosemAcseOpen (REQUEST, m_currentCosemApServer, packet); 
+
           NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAP ("<< m_wPort << ":" << Ipv4Address::ConvertFrom (m_localAddress) <<")" 
                                                        << " has requested an AA establishment to SAP (" 
                                                        << m_currentCosemApServer->GetWport () << ":" 
@@ -214,7 +219,8 @@ CosemApClient::StartRequest ()
               m_currentCosemApServer = app->GetObject<CosemApServer> ();  
               m_itSap ++;  
               Ptr<Packet> packet = NULL; // dummy packet
-              m_cosemAlClient->CosemAcseOpen (REQUEST, m_currentCosemApServer, packet);   
+              m_cosemAlClient->CosemAcseOpen (REQUEST, m_currentCosemApServer, packet); 
+  
               NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAP ("<< m_wPort << ":" << Ipv4Address::ConvertFrom (m_localAddress) <<")" 
                                                        << " has requested an AA establishment to SAP (" 
                                                        << m_currentCosemApServer->GetWport () << ":" 
@@ -270,7 +276,7 @@ CosemApClient::RequestRelease ()
 {
   NS_LOG_FUNCTION_NOARGS ();
   NS_ASSERT (m_releaseAAEvent.IsExpired ());
-  Simulator::Cancel (m_releaseAAEvent);
+  Simulator::Cancel (m_releaseAAEvent); 
 
  if (m_typeRequesting)
     {
@@ -305,14 +311,14 @@ CosemApClient::RequestRelease ()
 void 
 CosemApClient::SaveActiveAa (Ptr<CosemApServer> cosemApServer)
 {
-  uint16_t dstWport = cosemApServer->GetWport ();
-  m_activeAa[dstWport] = cosemApServer;
+  // uint16_t dstWport = cosemApServer->GetWport ();
+  m_activeAa[m_nSap] = cosemApServer;      
 }
 	
 void 
 CosemApClient::RemoveActiveAa (Ptr<CosemApServer> cosemApServer)
 {
-  // Find the wPort of the current SAP
+  /*// Find the wPort of the current SAP
   m_it = m_activeAa.find(cosemApServer->GetWport ());
 
   if (m_activeAa.end () != m_it)
@@ -323,7 +329,7 @@ CosemApClient::RemoveActiveAa (Ptr<CosemApServer> cosemApServer)
     {
       NS_LOG_INFO ("Error: Doesn't exist the AA requested to release!");
       return;			
-    }
+    }*/
 }
 
 void 

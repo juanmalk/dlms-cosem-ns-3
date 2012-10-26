@@ -179,11 +179,8 @@ CosemAlClient::CosemAcseApdu (int typeAcseService, int typeService, Ptr<CosemApS
           hdr.SetProposedDlmsVersionNumber (6);  // Version number, {6}
           hdr.SetProposedConformance (0x001010);   // {0x001010}, Based on the example in Annex C IEC 62056-53	
           hdr.SetClientMaxReceivePduSize (0x4B0);  // Client_Max_Receive_PDU_Size,{0x4B0}:1200 bytes
-     
-          // For debugging porpuses
-          NS_LOG_INFO ("APDU size: " << hdr.GetSerializedSize () << "B");
 	     
-          Ptr<Packet> packet = Create<Packet> (hdr.GetSerializedSize ()); // Create the AARQ APDU packet
+          Ptr<Packet> packet = Create<Packet> (); // Create the AARQ APDU packet
           packet->AddHeader (hdr); // Copy the header into the packet
 
           TypeAPDU typeHdr;
@@ -204,10 +201,7 @@ CosemAlClient::CosemAcseApdu (int typeAcseService, int typeService, Ptr<CosemApS
           CosemRlrqHeader hdr;
           hdr.SetReason (0);  // Release request reason, {0, normal}  
 
-          // For debugging porpuses
-          NS_LOG_INFO ("APDU size: " << hdr.GetSerializedSize () << "B");
-
-          Ptr<Packet> packet = Create<Packet> (hdr.GetSerializedSize ()); // Create the RLRQ APDU packet
+          Ptr<Packet> packet = Create<Packet> (); // Create the RLRQ APDU packet
           packet->AddHeader (hdr); // Copy the header into the packet
 
           TypeAPDU typeHdr;
@@ -249,11 +243,8 @@ CosemAlClient::CosemXdlmsApdu (int typeGet, int typeService, Ptr<CosemApServer> 
           hdr.SetClassId (0X03);  // Class Register
           hdr.SetInstanceId (0x010100070000);  // OBIS CODE: 1.1.0.7.0.0
           hdr.SetAttributeId (0x02);  // Second Attribut = Value
-         
-          // For debugging porpuses
-          NS_LOG_INFO ("APDU size: " << hdr.GetSerializedSize () << "B");
 
-          Ptr<Packet> packet = Create<Packet> (hdr.GetSerializedSize ()); // Create the GET-Request (Normal) APDU packet
+          Ptr<Packet> packet = Create<Packet> (); // Create the GET-Request (Normal) APDU packet
           packet->AddHeader (hdr); // Copy the header into the packet
 
           TypeAPDU typeHdr;
@@ -297,10 +288,6 @@ CosemAlClient::RecvCosemApduUdp (Ptr<Packet> packet)
  
   if (typeAPDU == AARE)
     {
-      // Extract Associate.cnf and xDLMS-Initiate.res parameters (information not used at the moment)
-      CosemAareHeader hdr;
-      packet->RemoveHeader (hdr);
-
       // Event: Invoke COSEM-OPEN.cnf(OK) service    
       m_invokeCosemServiceEvent = Simulator::Schedule (Seconds (0.0), &CosemAlClient::CosemAcseOpen, this, CONFIRM, curretSap, packet);
     }

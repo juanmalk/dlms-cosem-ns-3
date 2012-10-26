@@ -52,7 +52,7 @@ public:
   ApplicationContainer Install (NodeContainer c);
   
   // Create and Aggregate the CosemClient Stack to the node ("physical device")
-  void AddCosemClientStack (Ptr<Node> node,  uint32_t j);
+  void AddCosemClientStack (Ptr<Node> node);
 
 private:
       
@@ -60,6 +60,7 @@ private:
   Ipv4InterfaceContainer m_interface;
   Time m_interval;
   ObjectFactory m_factory;
+  uint32_t m_index;
 };
 
 } // namespace ns3

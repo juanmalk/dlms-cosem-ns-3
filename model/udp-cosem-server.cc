@@ -135,7 +135,8 @@ UdpCosemWrapperServer::AdaptCosemUdpServices (int type_service, Ptr<Packet> pack
   if (type_service == INDICATION)
     {
       // Pass the information to the SAL ("inoke" UDP-DATA.ind (APDU))
-      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CW-S --> RECEIVE ("
+      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CW-S (" << Ipv4Address::ConvertFrom (m_localAddress) 
+                                                   << ") --> RECEIVE ("
                                                    << packet->GetSize () << "B)" << "--> UDP-DATA.ind (APDU)");  
       m_cosemAlServer->RecvCosemApduUdp (packet);
     }
@@ -144,7 +145,8 @@ UdpCosemWrapperServer::AdaptCosemUdpServices (int type_service, Ptr<Packet> pack
     {
       // Call SEND Udp function (through UdpSocket)
       m_socket->Send (packet);
-      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CW-S --> UDP-DATA.req (APDU) --> SEND ("
+      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CW-S (" << Ipv4Address::ConvertFrom (m_localAddress) 
+                                                   << ") --> SEND ("
                                                    << packet->GetSize () << "B)"); 
     }
 }

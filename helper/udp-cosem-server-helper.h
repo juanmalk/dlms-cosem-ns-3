@@ -50,13 +50,14 @@ public:
   ApplicationContainer Install (NodeContainer c);
   
   // Create and Aggregate the CosemServer Stack to the node ("physical device")
-  void AddCosemServerStack (Ptr<Node> node, uint32_t j);
+  void AddCosemServerStack (Ptr<Node> node);
 
 private:
       
   ApplicationContainer m_cosemApServerContainer;
   Ipv4InterfaceContainer m_interface;
   ObjectFactory m_factory;
+  uint32_t m_index;
 };
 
 } // namespace ns3
