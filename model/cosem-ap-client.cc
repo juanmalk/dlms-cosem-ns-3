@@ -119,7 +119,7 @@ CosemApClient::Recv (Ptr<Packet> packet, int typeAcseService, int typeGet, Ptr<C
         {
           NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAP ("<< m_wPort << ":" << Ipv4Address::ConvertFrom (m_localAddress) <<")" 
                                                        << " has finished the releasing process!");
-
+          
           // Event: Change the state of CAL to IDLE
           EventId changeStateEvent = Simulator::Schedule (Seconds (0.0), &CosemAlClient::SetStateCf, m_cosemAlClient, CF_IDLE);
           m_cosemAlClient->SetChangeStateEvent (changeStateEvent);
@@ -134,7 +134,7 @@ CosemApClient::Recv (Ptr<Packet> packet, int typeAcseService, int typeGet, Ptr<C
   // COSEM-GET.cnf (NORMAL, Data)
   if (typeGet == GET_NORMAL)
     { 
-      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAL (" << Ipv4Address::ConvertFrom (m_localAddress) << ") --> Get.cnf(Normal, Data)");
+      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAL (" << Ipv4Address::ConvertFrom (m_localAddress) << ") --> Get.cnf(NORMAL, Data)");
 
       // Extract the requested data
       CosemGetResponseNormalHeader hdr;
@@ -142,7 +142,7 @@ CosemApClient::Recv (Ptr<Packet> packet, int typeAcseService, int typeGet, Ptr<C
       m_reqData = hdr.GetData ();
       m_sizeReqData = hdr.GetSerializedSize ();
       NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAP ("<< m_wPort << ":" << Ipv4Address::ConvertFrom (m_localAddress) <<")" 
-                                                   << " has received " << m_sizeReqData << "B of data from the  SAP (" 
+                                                   << " has received " << m_sizeReqData << "B of data from the SAP (" 
                                                    << cosemApServer->GetWport () << ":"
                                                    << Ipv4Address::ConvertFrom (cosemApServer->GetLocalAddress ()) << ")");
 
@@ -301,8 +301,7 @@ CosemApClient::RequestRelease ()
                                                        << Ipv4Address::ConvertFrom (m_currentCosemApServer->GetLocalAddress ()) << ")");  
         }
       else 
-        {
-          NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s All AA have been released!!!"); 
+        { 
           m_nSap = 0; 
         }
     }
@@ -318,18 +317,18 @@ CosemApClient::SaveActiveAa (Ptr<CosemApServer> cosemApServer)
 void 
 CosemApClient::RemoveActiveAa (Ptr<CosemApServer> cosemApServer)
 {
-  /*// Find the wPort of the current SAP
-  m_it = m_activeAa.find(cosemApServer->GetWport ());
+  // Find the wPort of the current SAP
+  std::map<uint16_t, Ptr<CosemApServer> >::iterator it = m_activeAa.find(m_nSap);
 
-  if (m_activeAa.end () != m_it)
+  if (m_activeAa.end () != it)
     {
-       m_activeAa.erase (m_it);	// Exists the connection, so erase it
+       m_activeAa.erase (it);	// Exists the connection, so erase it
     } 
   else 
     {
       NS_LOG_INFO ("Error: Doesn't exist the AA requested to release!");
       return;			
-    }*/
+    }
 }
 
 void 

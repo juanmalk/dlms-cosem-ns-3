@@ -78,7 +78,6 @@ UdpCosemServerHelper::Install (NodeContainer c)
       cosemApServer->SetUdpport (4056);
       // Set the Ip address assigned to the node 
       cosemApServer->SetLocalAddress (m_interface.GetAddress (m_index)); 
-      // NS_LOG_INFO ("Set IP to SAP j = " << m_index << " with IP = " << Ipv4Address::ConvertFrom (m_interface.GetAddress(m_index)));
       // Add the CosemApServer created to the ApplicationContainer
       apps.Add (cosemApServer);   
       // Connect CosemAlServer and cosemApServer to each other

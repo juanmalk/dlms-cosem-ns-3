@@ -146,8 +146,8 @@ UdpCosemWrapperServer::AdaptCosemUdpServices (int type_service, Ptr<Packet> pack
       // Call SEND Udp function (through UdpSocket)
       m_socket->Send (packet);
       NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CW-S (" << Ipv4Address::ConvertFrom (m_localAddress) 
-                                                   << ") --> SEND ("
-                                                   << packet->GetSize () << "B)"); 
+                                                   << ") --> UDP-DATA.req (APDU) --> SEND ("
+                                                   << packet->GetSize () << "B)");
     }
 }
 
