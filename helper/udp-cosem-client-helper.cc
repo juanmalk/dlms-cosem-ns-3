@@ -67,7 +67,6 @@ UdpCosemClientHelper::Install (NodeContainer c)
       // Create a CosemApClientObject
       //Ptr<CosemApClient> cosemApClient =  m_factory.Create<CosemApClient> ();
       Ptr<CosemApClient> cosemApClient = CreateObject<CosemApClient> ();
-
       // Retrieve the pointer of the CosemAlClient that has previously aggregated to the node
       Ptr<CosemAlClient> cosemAlClient = node->GetObject<CosemAlClient> ();
       // Retrieve the pointer of the UdpCosemWrapperClient that has previously aggregated to the node

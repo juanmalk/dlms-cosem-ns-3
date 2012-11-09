@@ -141,6 +141,13 @@ CosemApClient::Recv (Ptr<Packet> packet, int typeAcseService, int typeGet, Ptr<C
       packet->RemoveHeader (hdr);
       m_reqData = hdr.GetData ();
       m_sizeReqData = hdr.GetSerializedSize ();
+
+      // callback for DCApp
+      if (!m_recvData.IsNull ())
+        {
+          m_recvData (m_sizeReqData);
+        }
+     
       NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAP ("<< m_wPort << ":" << Ipv4Address::ConvertFrom (m_localAddress) <<")" 
                                                    << " has received " << m_sizeReqData << "B of data from the SAP (" 
                                                    << cosemApServer->GetWport () << ":"
@@ -237,10 +244,19 @@ CosemApClient::StartRequest ()
 void
 CosemApClient::NewRequest ()
 {
-  NS_LOG_FUNCTION_NOARGS ();
-  NS_ASSERT (m_nextRequestEvent.IsExpired ());
-  Simulator::Cancel (m_nextRequestEvent);
-
+  // Only when an Data Application is present at the node
+  if (!m_recvData.IsNull ())
+    {
+      NS_LOG_FUNCTION_NOARGS ();
+      Simulator::Cancel (m_nextRequestEvent);    
+    }
+  else
+    {
+      NS_LOG_FUNCTION_NOARGS ();
+      NS_ASSERT (m_nextRequestEvent.IsExpired ()); 
+      Simulator::Cancel (m_nextRequestEvent);
+    }
+  
   if (m_typeRequesting)
     {
       NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s Multicast Resquesting Mechanism");
@@ -329,6 +345,12 @@ CosemApClient::RemoveActiveAa (Ptr<CosemApServer> cosemApServer)
       NS_LOG_INFO ("Error: Doesn't exist the AA requested to release!");
       return;			
     }
+}
+
+void 
+CosemApClient::SetRecvCallback (Callback<void, uint32_t> recvData)
+{
+  m_recvData = recvData;
 }
 
 void 
@@ -426,6 +448,12 @@ CosemApClient::GetNode () const
 {
   Ptr<Node> node = Application::GetNode ();
   return node;
+}
+
+uint32_t 
+CosemApClient::GetSizeReqData ()
+{
+  return m_sizeReqData;
 }
 
 void

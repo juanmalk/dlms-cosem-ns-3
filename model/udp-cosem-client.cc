@@ -95,10 +95,10 @@ UdpCosemWrapperClient::Send (Ptr<Packet> packet, Ptr<CosemApServer> cosemApServe
   if (m_socket == 0)
     {
       TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
-      m_socket = Socket::CreateSocket (m_cosemAlClient->GetCosemApClient ()->GetNode (), tid);
-      InetSocketAddress local = InetSocketAddress (Ipv4Address::ConvertFrom(m_localAddress), m_udpPort);
+      m_socket = Socket::CreateSocket (m_cosemAlClient->GetCosemApClient ()->GetNode (), tid);  
+      InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), m_udpPort);
       m_socket->Bind (local);
-
+     
       // For debugging purposes
       // NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s UDPSocketClient created with Ip " << Ipv4Address::ConvertFrom(m_localAddress));
 
@@ -134,9 +134,10 @@ UdpCosemWrapperClient::AdaptCosemUdpServices (int type_service, Ptr<Packet> pack
 
   if (type_service == REQUEST)
     {
+
       // Call SEND Udp function (through UdpSocket)
       m_socket->Send (packet); 
-      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CW-C (" << Ipv4Address::ConvertFrom (m_localAddress) 
+      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CW-C (" << Ipv4Address::ConvertFrom (m_localAddress)    
                                                    << ") --> UDP-DATA.req (APDU) --> SEND ("
                                                    << packet->GetSize () << "B)");
     }

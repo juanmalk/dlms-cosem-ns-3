@@ -22,11 +22,13 @@
 #define COSEM_AL_CLIENT_H
 
 #include <map>
+#include "ns3/callback.h"
+#include "ns3/ptr.h"
 #include "ns3/application.h"
 #include "ns3/address.h"
 #include "ns3/application-container.h"
 #include "ns3/event-id.h"
-#include "ns3/ptr.h"
+#include <stdint.h>
 
 namespace ns3 {
 
@@ -68,6 +70,9 @@ public:
   // Remove the AAs succesfully established before
   void RemoveActiveAa (Ptr<CosemApServer> cosemApServer);
 
+  // Notify Data Concentrator Application when new data is available to be read. 
+  void SetRecvCallback (Callback<void, uint32_t> recvData);
+
   // Set & GET the pointer to a CosemAlClient object
   void SetCosemAlClient (Ptr<CosemAlClient> cosemAlClient);
   Ptr<CosemAlClient> GetCosemAlClient ();
@@ -101,6 +106,9 @@ public:
 
   // Retrieve the node where the CAP is attached
   Ptr<Node> GetNode () const;
+
+  // Retrieve the size in Bytes of the requested Data sent by the remote SAP
+  uint32_t GetSizeReqData (); 
   
   // Type of services
   enum typeService { REQUEST, INDICATION, RESPONSE, CONFIRM };
@@ -117,7 +125,7 @@ public:
 protected:
 
   virtual void DoDispose (void);
- 
+
 private:
 
   Ptr<CosemAlClient> m_cosemAlClient;
@@ -130,11 +138,14 @@ private:
   bool m_typeRequesting;  // Type Requesting mechanism: TRUE = MULTICASTING (simultaneous); FALSE = SEQUENCIAL (Round Robin style)
   uint32_t m_reqData; // The requested Data sent by the remote SAP
   uint32_t m_sizeReqData; // Size in Bytes of the requested Data sent by the remote SAP
+  
+  // Callback for DataConcentrator only
+  Callback<void, uint32_t> m_recvData; 
 
   // Map container to store the AAs succesfully established 
   std::map<uint16_t, Ptr<CosemApServer> > m_activeAa;	
   std::map<uint16_t, Ptr<CosemApServer> >::iterator m_it;
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   virtual void StartApplication (void);
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             virtual void StartApplication (void);
 
   virtual void StopApplication (void);
 
