@@ -28,11 +28,11 @@
 
 // Default Network Topology
 //
-// (SG)   10.1.1.0   (DC) (SM1) (SM2) (SM3)
-//  n0 -------------- n1   n2   n3   n4
-//     point-to-point  |    |    |    |
-//                     ================
-//                       LAN 10.1.2.0
+// (SG)   10.1.1.0   (DC) (SM1) (SM2) ... (SM3)
+//  n0 -------------- n1   n2   n3    ...  n4
+//       fiber (p2p)   |    |    |          |
+//                     ====================== (CSMA Channel)
+//                         LAN 10.1.2.0
 
 
 using namespace ns3;
@@ -74,10 +74,10 @@ main (int argc, char *argv[])
   NodeContainer csmaNodes;
   csmaNodes.Add (p2pNodes.Get (1));
   csmaNodes.Create (nCsma);
-
-  PointToPointHelper pointToPoint;
-  pointToPoint.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
-  pointToPoint.SetChannelAttribute ("Delay", StringValue ("2ms"));
+ 
+  PointToPointHelper pointToPoint; // fiber
+  pointToPoint.SetDeviceAttribute ("DataRate", StringValue ("622Mbps"));
+  pointToPoint.SetChannelAttribute ("Delay", StringValue ("1ms"));
 
   NetDeviceContainer p2pDevices;
   p2pDevices = pointToPoint.Install (p2pNodes);
@@ -121,29 +121,30 @@ main (int argc, char *argv[])
     }
 
   serverApps.Start (Seconds (1.0));
-  serverApps.Stop (Seconds (10.0));
+  serverApps.Stop (Seconds (100.0));
 
   // Cosem Application Clients  
-  UdpCosemClientHelper cosemClient (serverApps, dcCsmaInterfaces, Seconds (2));
+  // (request data to Smart Meters every 1 min + delay of polling all smart meters)
+  UdpCosemClientHelper cosemClient (serverApps, dcCsmaInterfaces, Seconds (60.0)); 
   ApplicationContainer clientApps = cosemClient.Install (p2pNodes.Get (1));
   clientApps.Start (Seconds (1.0));
-  clientApps.Stop (Seconds (10.0));
+  clientApps.Stop (Seconds (900.0));
 
   // Data Concentrator Application
   DataConcentratorApplicationHelper dc (clientApps, p2pInterfaces.GetAddress (0), p2pInterfaces.GetAddress (1)); 
   ApplicationContainer dcApps = dc.Install (p2pNodes.Get (1));
   dcApps.Start (Seconds (1.001));
-  dcApps.Stop (Seconds (10.0));
+  dcApps.Stop (Seconds (900.0));
 
-  // Demand Response Application on Control Center
-  DemandResponseApplicationHelper drHelper (dcApps, p2pInterfaces.GetAddress (0), Seconds (5));
+  // Demand Response Application on Control Center (request data to Data Concentrator every 3 min)
+  DemandResponseApplicationHelper drHelper (dcApps, p2pInterfaces.GetAddress (0), Seconds (180.0), 60.0);
   ApplicationContainer drApps = drHelper.Install (p2pNodes.Get (0));
   drApps.Start (Seconds (0.0));
-  drApps.Stop (Seconds (10.0));
+  drApps.Stop (Seconds (900.0));
 
   Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
   
-  Simulator::Stop (Seconds (11.0));
+  Simulator::Stop (Seconds (950.0));
   
   pointToPoint.EnablePcapAll ("second");
   csma.EnablePcap ("second", csmaDevices.Get (1), true);
