@@ -26,8 +26,10 @@
 #include "ns3/socket-factory.h"
 #include "ns3/simulator.h"
 #include "ns3/nstime.h"
+#include "dr-header.h"
 #include "dc-app.h"
 #include "dr-app.h"
+
 
 namespace ns3 {
 
@@ -49,6 +51,9 @@ DemandResponseApplication::DemandResponseApplication ()
   // For debugging purposes
   //NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s DrApp created!");
   m_nextTimeRequest = Seconds (0.0);
+  m_meterData = 0;
+  m_partialMeterData = 0;
+  m_length = 0;
   m_sendEvent = EventId ();
   m_requestEvent = EventId ();
   m_commandEvent = EventId ();
@@ -75,7 +80,7 @@ DemandResponseApplication::Send (Ptr<Packet> packet, Address currentDcAddress)
       m_socket->Send (packet); 
       NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CC (" 
                                                << Ipv4Address::ConvertFrom (m_localAddress) 
-                                               << ") sent " << packet->GetSize () << "B to DC ("
+                                               << ") sent a request (" << packet->GetSize () << "B) to DC ("
                                                << Ipv4Address::ConvertFrom (currentDcAddress) << ")");
     } 
 }	
@@ -85,26 +90,74 @@ DemandResponseApplication::Recv (Ptr<Socket> socket)
 {
   Ptr<Packet> pkt;
   Address from;
+  TypeMessage typeHdr;
   // Retreive the packet sent by the Smart Grid Center
   pkt = socket->RecvFrom (from);  
-
+ 
   if (InetSocketAddress::IsMatchingType (from))
     {
-      // Record the received data
-      /*CosemPollResponsePduHeader hdr
-      packet->RemoveHeader (hdr);
-      uint32_t data = hdr.GetData ();
-      */
-      uint32_t data = pkt->GetSize ();   
-      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CC (" 
+     // Remove and copy the Demand Reponse Message Header from the packet
+     pkt->RemoveHeader (typeHdr);
+     MessageType typeMessage = typeHdr.GetMessageType (); 
+   
+     if (typeMessage == METER_POLL_RES_NORMAL)
+       { 
+         // Record the received information
+         MeterPollResponseNormalMessageHeader hdr;
+         pkt->RemoveHeader (hdr);
+         m_meterData = hdr.GetMeterData (); //---> check it when the CC is attending more than one DC: can m_meterData being overwritten?
+         NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CC (" 
                                                    << Ipv4Address::ConvertFrom (m_localAddress) 
-                                                   << ") received " << pkt->GetSize () << "B from DC ("
+                                                   << ") received " << hdr.GetLength () << "B of data from DC ("
                                                    << InetSocketAddress::ConvertFrom (from).GetIpv4 () << ")");
 
-      // Event: Call Demand Response Mechanism to analyse the received data
-      Address currentDcAddress = Address (InetSocketAddress::ConvertFrom (from).GetIpv4 ());
-      m_demandResponseMechanismEvent = Simulator::Schedule (Seconds (0.0), &DemandResponseApplication::DemandResponseMechanism, this, data, currentDcAddress);
-    }
+         // Event: Call Demand Response Mechanism to analyse the received data
+         Address currentDcAddress = Address (InetSocketAddress::ConvertFrom (from).GetIpv4 ());
+         m_demandResponseMechanismEvent = Simulator::Schedule (Seconds (0.0), &DemandResponseApplication::DemandResponseMechanism, this, m_meterData, currentDcAddress);
+       }
+
+     if (typeMessage == METER_POLL_RES_BLOCK)
+       { 
+         // Record the received information
+         MeterPollResponseBlockMessageHeader hdr;
+         pkt->RemoveHeader (hdr);
+
+         if (hdr.GetLastBlock () == 0)
+           {
+             m_partialMeterData += hdr.GetMeterData (); //---> check it when the CC is attending more than one DC
+              
+              if (hdr.GetBlockNumber () == 1)
+                m_length = hdr.GetLength ();
+
+             NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CC (" << Ipv4Address::ConvertFrom (m_localAddress) 
+                                                          << ") received block (n = " << hdr.GetBlockNumber ()
+                                                          << ") " << m_partialMeterData << "B of " <<  m_length << "B from DC ("
+                                                          << InetSocketAddress::ConvertFrom (from).GetIpv4 () << ")");
+             
+             // Event: Request the next block of data
+             m_requestNextBlockEvent = Simulator::Schedule (Seconds (0.0), &DemandResponseApplication::RequestNextBlock, this, hdr.GetBlockNumber ());
+
+           }
+         else
+           {
+             m_partialMeterData += hdr.GetMeterData ();  //---> check it when the CC is attending more than one DC
+             m_meterData = m_partialMeterData;
+             m_partialMeterData = 0;
+
+             NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CC (" 
+                                                   << Ipv4Address::ConvertFrom (m_localAddress) 
+                                                   << ") received block (LAST) " <<  m_meterData << "B of " 
+                                                   <<  m_length << "B from DC ("
+                                                   << InetSocketAddress::ConvertFrom (from).GetIpv4 () << ")");
+              
+             
+
+             // Event: Call Demand Response Mechanism to analyse the received data
+             Address currentDcAddress = Address (InetSocketAddress::ConvertFrom (from).GetIpv4 ());
+             m_demandResponseMechanismEvent = Simulator::Schedule (Seconds (0.0), &DemandResponseApplication::DemandResponseMechanism, this, m_meterData, currentDcAddress);
+            } 
+         }
+      }
 }
 
 void 
@@ -113,17 +166,18 @@ DemandResponseApplication::Request ()
   NS_ASSERT (m_requestEvent.IsExpired ());
   Simulator::Cancel (m_requestEvent);
 
-  // Create a Demand Response packet of 30 bytes
-  Ptr<Packet> packet = Create<Packet> (30); 
+  TypeMessage typeHdr; 
+  // Create a Demand Response packet 
+  Ptr<Packet> packet = Create<Packet> (); 
 
-  // Build the PDU and add header into the packet
-  /* CosemPollRequestPduHeader hdr;
-  hdr.SetCommad (command);  
-  packet->AddHeader (hdr); // Copy the header into the packet
-  TypeAPDU typeHdr;
-  typeHdr.SetApduType ((PduType)hdr.GetIdPdu()); // Define the type of PDU
-  packet->AddHeader (typeHdr); // Copy the header into the packet 
-  */
+  // Build the Demand Response Message and add header into the packet
+  MeterPollRequestMessageHeader hdr;
+  hdr.SetReadingType (0); // Request the Total Average Active energy (kWh)
+  hdr.SetReadingTime (m_readingTime); // Time to read the smart Meter by Data Concentrator 
+  packet->AddHeader (hdr); // Add the Demand Response Message header into the packet 
+
+  typeHdr.SetMessageType (METER_POLL_REQ); // Define the Message type 
+  packet->AddHeader (typeHdr); 
 
   // Request of data to Data Concentrators at AMI network
   std::vector<Ptr<Application> >::const_iterator i;
@@ -144,44 +198,74 @@ DemandResponseApplication::Request ()
 }
 
 void 
-DemandResponseApplication::Command (uint8_t messageType, uint32_t command, Address currentDcAddress)
+DemandResponseApplication::RequestNextBlock (uint16_t blockNumber)
+{
+  NS_ASSERT (m_requestNextBlockEvent.IsExpired ());
+  Simulator::Cancel (m_requestNextBlockEvent);
+
+  TypeMessage typeHdr; 
+  // Create a Demand Response packet 
+  Ptr<Packet> packet = Create<Packet> (); 
+
+  // Build the Demand Response Message and add header into the packet
+  MeterPollRequestNextMessageHeader hdr;
+  hdr.SetBlockNumber (blockNumber); // Number of the meter data block received before
+  packet->AddHeader (hdr); // Add the Demand Response Message header into the packet 
+
+  typeHdr.SetMessageType (METER_POLL_REQ_NEXT); // Define the Message type 
+  packet->AddHeader (typeHdr); 
+
+  // Request the next block of data to Data Concentrators at AMI network
+  std::vector<Ptr<Application> >::const_iterator i;
+  Time t = Seconds(0.0); // Next YY secs (established at script) 
+  uint32_t j = 0;
+  for (i = m_containerDcApp.Begin (); i != m_containerDcApp.End (); ++i)
+    { 
+      Ptr<Application> app = m_containerDcApp.Get (j++); 
+      Ptr<DataConcentratorApplication> dcApp = app->GetObject<DataConcentratorApplication> (); 
+      Address currentDcAddress = dcApp->GetLocalAddress ();
+      // Event: Send the PDU to the lower layers ---> each event has independent argument (i.e. currentDcAddress)???
+      m_sendEvent = Simulator::Schedule (t, &DemandResponseApplication::Send, this, packet, currentDcAddress);
+      t += Seconds (0.001); // increase by 1ms 
+    }
+}
+
+void 
+DemandResponseApplication::Command (uint8_t signalType, uint32_t command, Address currentDcAddress, uint32_t customerId)
 {
   NS_ASSERT (m_commandEvent.IsExpired ());
   Simulator::Cancel (m_commandEvent);
 
   Time t; // auxiliary time variable  
-
-  // Create a Demand Response packet of 50 bytes
-  Ptr<Packet> packet = Create<Packet> (50); 
+  TypeMessage typeHdr; 
+  // Create a Demand Response packet
+  Ptr<Packet> packet = Create<Packet> (); 
   
-  if (messageType == CONTROL)
+  if (signalType == S_CONTROL)
     {
-      // Build the PDU and add header into the packet
-      /* CosemControlPduHeader hdr;
-      hdr.SetCommad (command);  
-      packet->AddHeader (hdr); // Copy the header into the packet
-      TypeAPDU typeHdr;
+      // Build the Demand Response Message and add header into the packet
+      ControlMessageHeader hdr;
+      hdr.SetCommand (command); // the command paramenter "contains" the control or curtailment commands
+      hdr.SetCustomerId (customerId);  // Assign the command to the Meter with the customer Id specified 
+      packet->AddHeader (hdr); // Add the Demand Response Message header into the packet 
 
-      typeHdr.SetApduType ((PduType)hdr.GetIdPdu()); // Define the type of PDU
-      packet->AddHeader (typeHdr); // Copy the header into the packet 
-      */
+      typeHdr.SetMessageType (CONTROL); // Define the Message type 
+      packet->AddHeader (typeHdr); 
 
       t = Seconds (0.0); // Immediately
     } 
 
-  if (messageType == PRICE)
+  if (signalType == S_PRICE)
     {
-      // Build the PDU and add header into the packet
- 
-      /* CosemPricePduHeader hdr;
+      // Build the Demand Response Message and add header into the packet
+      PriceMessageHeader hdr;
+      hdr.SetPrice (command); // the command paramenter "contains" the updated price
+      hdr.SetCustomerId (customerId); // Assign the command to the Meter with the customer Id specified 
+      packet->AddHeader (hdr); // Add the Demand Response Message header into the packet 
 
-      hdr.SetCommad (command);  
-      packet->AddHeader (hdr); // Copy the header into the packet
-      TypeAPDU typeHdr;
-      typeHdr.SetApduType ((PduType)hdr.GetIdPdu()); // Define the type of PDU
+      typeHdr.SetMessageType (PRICE); // Define the Message type 
+      packet->AddHeader (typeHdr); 
 
-      packet->AddHeader (typeHdr); // Copy the header into the packet 
-      */
       t = Seconds (0.0); // Immediately
     } 
 
@@ -195,12 +279,14 @@ DemandResponseApplication::DemandResponseMechanism (uint32_t data, Address curre
   NS_ASSERT (m_demandResponseMechanismEvent.IsExpired ());
   Simulator::Cancel (m_demandResponseMechanismEvent);
 
-  // HERE: Call the Demand Response Mechanism, which return a command or price response ("signal")
-  uint8_t messageType = PRICE;
+  // XX-HERE: Call the Demand Response Mechanism, which return a command or price response ("signal")
+  //uint8_t signalType = S_PRICE;
+  uint8_t signalType = S_CONTROL;
   uint32_t command = 0;
-
+  uint32_t customerId = 0;
+ 
   // Event: Construct and send the command message thrown by the Demand Response Mechanism
-  m_commandEvent = Simulator::Schedule (Seconds (0.0), &DemandResponseApplication::Command, this, messageType, command, currentDcAddress);
+  m_commandEvent = Simulator::Schedule (Seconds (0.0), &DemandResponseApplication::Command, this, signalType, command, currentDcAddress, customerId);
 }
 
 void 
@@ -234,6 +320,18 @@ DemandResponseApplication::GetNextTimeRequest ()
 }
 
 void
+DemandResponseApplication::SetReadingTime (uint32_t readingTime)
+{
+  m_readingTime = readingTime;
+}
+
+uint32_t
+DemandResponseApplication::GetReadingTime ()
+{ 
+  return m_readingTime;
+}
+
+void
 DemandResponseApplication::DoDispose (void)
 {
   NS_LOG_FUNCTION (this);
@@ -244,7 +342,8 @@ void
 DemandResponseApplication::StartApplication (void)
 {
   NS_LOG_FUNCTION_NOARGS ();
- // Create the socket
+
+  // Create the socket
   if (m_socket == 0)
     {
       TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
@@ -265,6 +364,7 @@ DemandResponseApplication::StopApplication (void)
   // Cancel Events
   Simulator::Cancel (m_sendEvent);
   Simulator::Cancel (m_requestEvent);
+  Simulator::Cancel (m_requestNextBlockEvent);
   Simulator::Cancel (m_commandEvent);
   Simulator::Cancel (m_demandResponseMechanismEvent);
 }	

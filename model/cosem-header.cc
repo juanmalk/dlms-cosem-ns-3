@@ -615,7 +615,7 @@ CosemRlrqHeader::Deserialize (Buffer::Iterator start)
 void 
 CosemRlrqHeader::Print (std::ostream &os) const
 {
-  os << "id AARQ " << m_idApdu
+  os << "id RLRQ " << m_idApdu
      << "Release request reason " << m_reason;
 }
 
@@ -701,7 +701,7 @@ CosemRlreHeader::Deserialize (Buffer::Iterator start)
 void 
 CosemRlreHeader::Print (std::ostream &os) const
 {
-  os << "id AARQ " << m_idApdu
+  os << "id RLRE " << m_idApdu
      << "Release request reason " << m_reason;
 }
 
@@ -800,7 +800,7 @@ CosemGetRequestNormalHeader::Deserialize (Buffer::Iterator start)
 void 
 CosemGetRequestNormalHeader::Print (std::ostream &os) const
 {
-  os << "id AARQ " << m_idApdu
+  os << "id GET-Request (Normal) APDU " << m_idApdu
      << "Type Get-Request " << m_typeGetRequest
      << "Invoke-Id And Priority " << m_invokeIdAndPriority
      << "Cosem Attribute Descriptor: Class-Id " <<  m_classId
@@ -948,7 +948,7 @@ CosemGetResponseNormalHeader::Deserialize (Buffer::Iterator start)
 void 
 CosemGetResponseNormalHeader::Print (std::ostream &os) const
 {
-  os << "id AARQ " << m_idApdu
+  os << "id GET-Response (Normal) APDU " << m_idApdu
      << "Type Get-Request " << m_typeGetResponse
      << "Invoke-Id And Priority " << m_invokeIdAndPriority
      << "Result: Data " <<  m_data

@@ -26,6 +26,7 @@
 #include "ns3/socket-factory.h"
 #include "ns3/simulator.h"
 #include "ns3/nstime.h"
+#include "dr-header.h"
 #include "cosem-ap-client.h"
 #include "dc-app.h"
 
@@ -48,6 +49,9 @@ DataConcentratorApplication::DataConcentratorApplication ()
 {
   // For debugging purposes
   //NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s DcApp created!");
+  m_cacheMemory = 0;
+  m_numberBlocks = 0;
+  m_currentNumberBlock = 0;
   m_sendEvent = EventId ();
 }
 
@@ -66,16 +70,14 @@ DataConcentratorApplication::Send (Ptr<Packet> packet)
   m_socket->Send (packet); 
   NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s DC (" 
                                                << Ipv4Address::ConvertFrom (m_localAddress) 
-                                               << ") sent " << packet->GetSize () << "B to CC ("
+                                               << ") sent a reponse (" << packet->GetSize () << "B) to CC ("
                                                << Ipv4Address::ConvertFrom (m_sgCenterAddress) << ")");
-  // Reset Memory
-  Simulator::Schedule (Seconds (0.0), &DcMemory::Reset, m_dcMemory);
 }	
 
 void 
 DataConcentratorApplication::RecvSm (uint32_t sizeData)
 {
-  Simulator::Schedule (Seconds (0.0), &DcMemory::Access, m_dcMemory, sizeData, STORAGE); 
+  Simulator::Schedule (Seconds (0.0), &DcMemory::Access, m_dcMemory, sizeData, STORE); 
 }
 
 void 
@@ -83,40 +85,153 @@ DataConcentratorApplication::RecvSg (Ptr<Socket> socket)
 {
   Ptr<Packet> pkt;
   Address from;
+  TypeMessage typeHdr;
   // Retreive the packet sent by the Smart Grid Center
   pkt = socket->RecvFrom (from);  
 
   if (InetSocketAddress::IsMatchingType (from))
     {
-    if (pkt->GetSize () != 50)  // i.e. different from PRICE or COntrol signal
-      { 
-        NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s DC (" 
+     // Remove and copy the Demand Reponse Message Header from the packet
+     pkt->RemoveHeader (typeHdr);
+     MessageType typeMessage = typeHdr.GetMessageType (); 
+ 
+     if (typeMessage == METER_POLL_REQ)
+       { 
+         NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s DC (" 
                                                  << Ipv4Address::ConvertFrom (m_localAddress) 
-                                                 << ") received a request (" << pkt->GetSize () << "B) from CC ("
+                                                 << ") received a request of data (" << pkt->GetSize () << "B) from CC ("
                                                  << InetSocketAddress::ConvertFrom (from).GetIpv4 () << ")");
-        // Check for data in memory
-        uint32_t data = m_dcMemory->Access (0, RETRIEVE); 
-        if (data == 0)
-          {
-            NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s Empty MEMORY! Requesting data to Smart Meters!");
+
+         // Record the received information
+         MeterPollRequestMessageHeader hdr;
+         pkt->RemoveHeader (hdr);
+
+         // Update the time that Data Concentrator must requests to Smart Meters
+         m_cosemApClient->SetNextTimeRequest (Seconds(hdr.GetReadingTime ()));
+
+         // Check for data in memory
+         uint32_t data = m_dcMemory->Access (0, RETRIEVE); 
+         if (data == 0)
+           {
+             NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s Empty MEMORY! Requesting data to Smart Meters!");
                                                    
-            // Doesn't exist data in the memory, request to the SMs
-            Simulator::Schedule (Seconds (0.0), &CosemApClient::NewRequest, m_cosemApClient); 
-          } 
-        else
-          {
-            // Exist data in the memory, encapsulate them and send a packet to the SG Center 
-            Ptr<Packet> packet = Create<Packet> (data);
-            m_sendEvent = Simulator::Schedule (Seconds (0.0), &DataConcentratorApplication::Send, this, packet);
-          }
-      }
-    else
-      {
-        NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s DC (" 
-                                                     << Ipv4Address::ConvertFrom (m_localAddress) 
-                                                     << ") received a command signal (" << pkt->GetSize () << "B) from CC ("
-                                                     << InetSocketAddress::ConvertFrom (from).GetIpv4 () << ")");
-      }
+             // Doesn't exist data in the memory, request to the SMs
+             Simulator::Schedule (Seconds (0.0), &CosemApClient::NewRequest, m_cosemApClient); 
+           } 
+         else
+           {
+             // Stores the data temporarily at "cache Memory"
+             m_cacheMemory = data;
+
+             // Exist data in the memory, encapsulate them and send a packet to the SG Center 
+             TypeMessage typeHdr; 
+             m_numberBlocks = (m_cacheMemory/1000 + (m_cacheMemory%1000 ? 1 : 0)); // Maximum packet size to send: 1000 Bytes
+             NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s Number of blocks to sent " << m_numberBlocks);
+             
+             if ((m_numberBlocks > 2) || (m_numberBlocks == 2) )
+               {
+         
+                 // Create a Demand Response packet 
+                 Ptr<Packet> packet = Create<Packet> (1000); 
+
+                 // Build the Demand Response Message and add header into the packet
+                 MeterPollResponseBlockMessageHeader hdr;
+                 hdr.SetMeterData (1000); // the first 1000 bytes
+                 hdr.SetBlockNumber (++m_currentNumberBlock); // first block
+                 hdr.SetLength (m_cacheMemory);
+                     
+                 packet->AddHeader (hdr); // Add the Demand Response Message header into the packet 
+
+                 typeHdr.SetMessageType (METER_POLL_RES_BLOCK); // Define the Message type 
+                 packet->AddHeader (typeHdr);
+               
+                 m_sendEvent = Simulator::Schedule (Seconds (0.0), &DataConcentratorApplication::Send, this, packet);
+
+                 // Reset Memory
+                 Simulator::Schedule (Seconds (0.0), &DcMemory::Reset, m_dcMemory);
+               }
+             else
+               {
+                 // Create a Demand Response packet 
+                 Ptr<Packet> packet = Create<Packet> ();
+
+                 // Build the Demand Response Message and add header into the packet
+                 MeterPollResponseNormalMessageHeader hdr;
+                 hdr.SetMeterData (data);
+                 hdr.SetLength (data);
+                    
+                 packet->AddHeader (hdr); // Add the Demand Response Message header into the packet 
+
+                 typeHdr.SetMessageType (METER_POLL_RES_NORMAL); // Define the Message type 
+                 packet->AddHeader (typeHdr);
+           
+                 m_sendEvent = Simulator::Schedule (Seconds (0.0), &DataConcentratorApplication::Send, this, packet);
+
+                 // Reset Memory
+                 Simulator::Schedule (Seconds (0.0), &DcMemory::Reset, m_dcMemory);
+               }
+           }
+       }
+     else if (typeMessage == METER_POLL_REQ_NEXT)
+       { 
+         // Create a Demand Response packet 
+         Ptr<Packet> packet = Create<Packet> (); 
+
+         // Build the Demand Response Message and add header into the packet
+         MeterPollResponseBlockMessageHeader hdr;
+         hdr.SetMeterData (1000); 
+         hdr.SetLength (m_cacheMemory);
+         hdr.SetBlockNumber (++m_currentNumberBlock);
+        
+         if (m_currentNumberBlock == m_numberBlocks)
+           {
+             hdr.SetLastBlock (true);
+             uint32_t lastBytesData = m_cacheMemory - 1000*(m_currentNumberBlock-1);
+
+             if (lastBytesData == 0)
+               {
+                 hdr.SetMeterData (1000); 
+               }
+             else
+               {
+                 hdr.SetMeterData (lastBytesData); 
+               }
+            
+             m_currentNumberBlock = 0;
+             m_cacheMemory = 0;
+           }
+          
+         packet->AddHeader (hdr); // Add the Demand Response Message header into the packet 
+
+         typeHdr.SetMessageType (METER_POLL_RES_BLOCK); // Define the Message type 
+         packet->AddHeader (typeHdr);
+               
+         m_sendEvent = Simulator::Schedule (Seconds (0.0), &DataConcentratorApplication::Send, this, packet);                 
+       }
+   
+     if (typeMessage == PRICE)
+       { 
+         NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s DC (" 
+                                                 << Ipv4Address::ConvertFrom (m_localAddress) 
+                                                 << ") received an udpated rates command (" << pkt->GetSize () << "B) from CC ("
+                                                 << InetSocketAddress::ConvertFrom (from).GetIpv4 () << ")");
+         // Record the received information
+         PriceMessageHeader hdr;
+         pkt->RemoveHeader (hdr);
+         // XX-HERE: Call the DLMS/COSEM service associated with update rates
+       }
+   
+     if (typeMessage == CONTROL)
+       { 
+         NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s DC (" 
+                                                 << Ipv4Address::ConvertFrom (m_localAddress) 
+                                                 << ") received a control command (" << pkt->GetSize () << "B) from CC ("
+                                                 << InetSocketAddress::ConvertFrom (from).GetIpv4 () << ")");
+         // Record the received information
+         ControlMessageHeader hdr;
+         pkt->RemoveHeader (hdr);
+         // XX-HERE: Call the DLMS/COSEM service associated with Disconnect command
+       }
    }
 }
 
@@ -233,10 +348,10 @@ DcMemory::~DcMemory ()
 uint32_t
 DcMemory::Access (uint32_t data, uint8_t memoryProcess)
 {
-  if (memoryProcess == STORAGE)
+  if (memoryProcess == STORE)
     {	
       // Store the data in the memory
-      Storage (data);   
+      Store (data);   
     }
 
   if (memoryProcess == RETRIEVE)
@@ -250,7 +365,7 @@ DcMemory::Access (uint32_t data, uint8_t memoryProcess)
 }
 
 void 
-DcMemory::Storage (uint32_t data)
+DcMemory::Store (uint32_t data)
 {
   // Store data (bytes)
   m_memory += data;

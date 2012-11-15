@@ -22,6 +22,7 @@
 #define DR_HEADER_H
 
 #include "ns3/header.h"
+#include "ns3/nstime.h"
 
 namespace ns3 {
 
@@ -136,13 +137,13 @@ public:
   // Allow protocol-specific access to the header  
   void SetReadingType (uint8_t readingType);
   uint8_t GetReadingType (void) const;
-  void SetReadingTime (uint16_t readingTime);
-  uint16_t GetReadingTime (void) const;
+  void SetReadingTime (uint32_t readingTime);
+  uint32_t GetReadingTime (void) const;
 
 private:
 
   uint8_t m_readingType; // Electric parameter. Ex. Total Average Active Power (1B)
-  uint16_t m_readingTime; // Reading time to poll the meter data (2B)
+  uint32_t m_readingTime; // Reading time to poll the meter data (4B)
 };
 
 /*
@@ -163,12 +164,12 @@ public:
   virtual void Print (std::ostream &os) const;
 
   // Allow protocol-specific access to the header  
-  void SetBlockNumber (uint32_t blockNumber);
-  uint32_t GetBlockNumber (void) const;
+  void SetBlockNumber (uint16_t blockNumber);
+  uint16_t GetBlockNumber (void) const;
 
 private:
 
-  uint32_t m_blockNumber; // Number of the meter data block sent by the Data Concetrator (4B)
+  uint16_t m_blockNumber; // Number of the meter data block received before (2B)
 };
 
 /*
@@ -220,8 +221,8 @@ public:
   // Allow protocol-specific access to the header  
   void SetMeterData (uint32_t meterData);
   uint32_t GetMeterData (void) const;
-  void SetBlockNumber (uint32_t blockNumber);
-  uint32_t GetBlockNumber (void) const;
+  void SetBlockNumber (uint16_t blockNumber);
+  uint16_t GetBlockNumber (void) const;
   void SetLength (uint16_t length); 
   uint16_t GetLength (void) const;  
   void SetLastBlock (bool lastBlock);

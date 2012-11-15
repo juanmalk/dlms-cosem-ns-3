@@ -333,7 +333,7 @@ MeterPollRequestMessageHeader::GetTypeId (void)
 MeterPollRequestMessageHeader::MeterPollRequestMessageHeader ()
 {
   m_readingType = 0;
-  m_readingTime = 0; 
+  m_readingTime = 0.0; 
 }
 
 MeterPollRequestMessageHeader::~MeterPollRequestMessageHeader ()
@@ -350,14 +350,14 @@ MeterPollRequestMessageHeader::GetInstanceTypeId (void) const
 uint32_t 
 MeterPollRequestMessageHeader::GetSerializedSize (void) const
 {
-  return 3;
+  return 5;
 }
  
 void 
 MeterPollRequestMessageHeader::Serialize (Buffer::Iterator start) const
 {
   start.WriteU8 (m_readingType);
-  start.WriteHtonU16 (m_readingTime);
+  start.WriteHtonU32 (m_readingTime);
 }
 
 uint32_t 
@@ -365,7 +365,7 @@ MeterPollRequestMessageHeader::Deserialize (Buffer::Iterator start)
 {
   Buffer::Iterator i = start;
   m_readingType = i.ReadU8 ();
-  m_readingTime = i.ReadNtohU16 ();
+  m_readingTime = i.ReadNtohU32 ();
   return GetSerializedSize ();
 }
 
@@ -389,12 +389,12 @@ MeterPollRequestMessageHeader::GetReadingType (void) const
 }
 
 void 
-MeterPollRequestMessageHeader::SetReadingTime (uint16_t readingTime)
+MeterPollRequestMessageHeader::SetReadingTime (uint32_t readingTime)
 {
   m_readingTime = readingTime;
 }
 
-uint16_t 
+uint32_t
 MeterPollRequestMessageHeader::GetReadingTime (void) const
 {
   return m_readingTime;
@@ -435,20 +435,20 @@ MeterPollRequestNextMessageHeader::GetInstanceTypeId (void) const
 uint32_t 
 MeterPollRequestNextMessageHeader::GetSerializedSize (void) const
 {
-  return 4;
+  return 2;
 }
  
 void 
 MeterPollRequestNextMessageHeader::Serialize (Buffer::Iterator start) const
 {
-  start.WriteHtonU32 (m_blockNumber);
+  start.WriteHtonU16 (m_blockNumber);
 }
 
 uint32_t 
 MeterPollRequestNextMessageHeader::Deserialize (Buffer::Iterator start)
 {
   Buffer::Iterator i = start;
-  m_blockNumber = i.ReadNtohU32 ();
+  m_blockNumber = i.ReadNtohU16 ();
   return GetSerializedSize ();
 }
 
@@ -459,12 +459,12 @@ MeterPollRequestNextMessageHeader::Print (std::ostream &os) const
 }
 
 void 
-MeterPollRequestNextMessageHeader::SetBlockNumber (uint32_t blockNumber)
+MeterPollRequestNextMessageHeader::SetBlockNumber (uint16_t blockNumber)
 {
   m_blockNumber = blockNumber;
 }
 
-uint32_t 
+uint16_t 
 MeterPollRequestNextMessageHeader::GetBlockNumber (void) const
 {
   return m_blockNumber;
@@ -638,12 +638,12 @@ MeterPollResponseBlockMessageHeader::GetMeterData (void) const
 }
 
 void 
-MeterPollResponseBlockMessageHeader::SetBlockNumber (uint32_t blockNumber)
+MeterPollResponseBlockMessageHeader::SetBlockNumber (uint16_t blockNumber)
 {
   m_blockNumber = blockNumber;
 }
 
-uint32_t 
+uint16_t 
 MeterPollResponseBlockMessageHeader::GetBlockNumber (void) const
 {
   return m_blockNumber;

@@ -32,7 +32,6 @@ namespace ns3 {
 
 class Socket;
 class Packet;
-class Time;
 
 
 /** 
@@ -58,8 +57,11 @@ public:
   // Request of data to AMI netowrk's Data Concentrator 
   void Request ();
 
+  // Request the next block of data to AMI netowrk's Data Concentrator 
+  void RequestNextBlock (uint16_t blockNumber);
+
   // Build command message to be sent by the Control Center to AMI netowrk's Data Concentrator 
-  void Command (uint8_t messageType, uint32_t command, Address currentDcAddress);
+  void Command (uint8_t signalType, uint32_t command, Address currentDcAddress, uint32_t customerId);
 
   // Call Demand Response Mechanism
   void DemandResponseMechanism (uint32_t data, Address currentDcAddres);
@@ -75,8 +77,12 @@ public:
   void SetNextTimeRequest (Time nextTimeRequest);
   Time GetNextTimeRequest ();
 
-  // Type of Demand Response Messages 
-  enum MessageType { CONTROL, PRICE }; 
+  // Set & Get Reading time to poll the meter data 
+  void SetReadingTime (uint32_t readingTime);
+  uint32_t GetReadingTime ();
+
+  // Type of Demand Response command signal
+  enum SignalType { S_CONTROL, S_PRICE }; 
 
 protected:
 
@@ -91,10 +97,15 @@ private:
   ApplicationContainer m_containerDcApp; // Container of DcApplication in the scenario
   Address m_localAddress;  // Local Ip address 
   Time m_nextTimeRequest; // Next time request of data to AMI netowrk's Data Concentrator 
+  uint32_t m_readingTime; // Reading time to poll the meter data 
+  uint32_t m_meterData; // Meter Data: Input to Demand Response Engine
+  uint32_t m_partialMeterData; // Parcial Meter Data (block)
+  uint16_t m_length;   // Length of the complete meter data block received by the Control Center
 
   // Helpers parameters
   EventId m_sendEvent;
   EventId m_requestEvent;
+  EventId m_requestNextBlockEvent;
   EventId m_commandEvent;
   EventId m_demandResponseMechanismEvent;
 };

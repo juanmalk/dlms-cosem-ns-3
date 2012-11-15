@@ -118,7 +118,7 @@ CosemApClient::Recv (Ptr<Packet> packet, int typeAcseService, int typeGet, Ptr<C
       if (m_nSap == m_totalNSap)
         {
           NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAP ("<< m_wPort << ":" << Ipv4Address::ConvertFrom (m_localAddress) <<")" 
-                                                       << " has finished the releasing process!");
+                                                       << " has finished the releasing process of " << m_nSap << " SM(s)!");
           
           // Event: Change the state of CAL to IDLE
           EventId changeStateEvent = Simulator::Schedule (Seconds (0.0), &CosemAlClient::SetStateCf, m_cosemAlClient, CF_IDLE);
@@ -140,7 +140,7 @@ CosemApClient::Recv (Ptr<Packet> packet, int typeAcseService, int typeGet, Ptr<C
       CosemGetResponseNormalHeader hdr;
       packet->RemoveHeader (hdr);
       m_reqData = hdr.GetData ();
-      m_sizeReqData = hdr.GetSerializedSize ();
+      m_sizeReqData = hdr.GetSerializedSize () - 4 ; // without CosemApp header (4B)
 
       // callback for DCApp
       if (!m_recvData.IsNull ())
@@ -157,7 +157,7 @@ CosemApClient::Recv (Ptr<Packet> packet, int typeAcseService, int typeGet, Ptr<C
     if (m_nSap == m_totalNSap)
       { 
         NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CAP ("<< m_wPort << ":" << Ipv4Address::ConvertFrom (m_localAddress) <<")" 
-                                                     << " has finished the requesting process!");
+                                                     << " has finished the requesting process " << m_nSap << " SM(s)!");
        
         // Initialize "it" parameter at the first entry in the Map that contains the SAPs that successfully established an AA
         m_it = m_activeAa.begin (); 
@@ -203,8 +203,9 @@ CosemApClient::StartRequest ()
           NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s Sequential Resquesting Mechanism (polling by CAP ("<< m_wPort << ":" 
                                                        << Ipv4Address::ConvertFrom (m_localAddress) << "))");
 
-          Ptr<Application> app = m_containerSap.Get (m_nSap ++);
+          Ptr<Application> app = m_containerSap.Get (m_nSap);
           m_currentCosemApServer = app->GetObject<CosemApServer> ();  // Retrieve the first Saps pointer stored in AppContainer 
+          m_nSap ++;   // Increase the value of "m_nSap" by one
           m_itSap ++;  // Increase the value of "it" by one
           /* 
            * Invoke the COSEM-OPEN.req service implemented in CosemClient_AL_CF	
@@ -222,8 +223,9 @@ CosemApClient::StartRequest ()
         {
           if (m_itSap != m_containerSap.End())
             {
-              Ptr<Application> app = m_containerSap.Get (m_nSap ++); 
+              Ptr<Application> app = m_containerSap.Get (m_nSap); 
               m_currentCosemApServer = app->GetObject<CosemApServer> ();  
+              m_nSap ++;   
               m_itSap ++;  
               Ptr<Packet> packet = NULL; // dummy packet
               m_cosemAlClient->CosemAcseOpen (REQUEST, m_currentCosemApServer, packet); 
@@ -244,7 +246,7 @@ CosemApClient::StartRequest ()
 void
 CosemApClient::NewRequest ()
 {
-  // Only when an Data Application is present at the node
+  // Only when Data Application is present at the node
   if (!m_recvData.IsNull ())
     {
       NS_LOG_FUNCTION_NOARGS ();

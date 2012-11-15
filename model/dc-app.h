@@ -72,7 +72,7 @@ public:
   Ptr<DcMemory> GetDcMemory ();
 
   // Memory processes 
-  enum MemoryProcess { STORAGE, RETRIEVE }; 
+  enum MemoryProcess { STORE, RETRIEVE }; 
 
 protected:
 
@@ -88,8 +88,11 @@ private:
   Ptr<DcMemory> m_dcMemory;
   Address m_sgCenterAddress;
   Address m_localAddress;  // Local Ip address 
+  uint32_t m_cacheMemory; // "cache Memory"
 
   // Helpers parameters
+  uint32_t m_numberBlocks;
+  uint32_t m_currentNumberBlock;
   EventId m_sendEvent;
 };
 
@@ -111,7 +114,7 @@ public:
   uint32_t Access (uint32_t data, uint8_t memoryProcess);
 
   // Store data to  DC's memory
-  void Storage (uint32_t data);
+  void Store (uint32_t data);
 
   // Retrieve data from DC's memory
   uint32_t Retrieve ();
@@ -120,10 +123,10 @@ public:
   void Reset ();
 	
   // Memory processes 
-  enum MemoryProcess { STORAGE, RETRIEVE };  
+  enum MemoryProcess { STORE, RETRIEVE };  
 
 private:
-  uint32_t m_memory; // storage 4Bytes of information (32 bits)
+  uint32_t m_memory; // stores 4Bytes of information (32 bits)
 };
 
 } // namespace ns3

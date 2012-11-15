@@ -38,7 +38,7 @@ public:
 
   DemandResponseApplicationHelper ();
 
-  DemandResponseApplicationHelper (ApplicationContainer dataConcentratorAppContainer, Address centerIp, Time interval);
+  DemandResponseApplicationHelper (ApplicationContainer dataConcentratorAppContainer, Address centerIp, Time interval, uint32_t readingTime);
 
   // Record an attribute to be set in each Application after it is is created
   void SetAttribute (std::string name, const AttributeValue &value);
@@ -56,6 +56,7 @@ private:
   ApplicationContainer m_dataConcentratorApplicationContainer;
   Address m_centerIpAddress;
   Time m_interval;
+  uint32_t m_readingTime;
   ObjectFactory m_factory;
 };
 
