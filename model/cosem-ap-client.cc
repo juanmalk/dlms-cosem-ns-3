@@ -246,7 +246,7 @@ CosemApClient::StartRequest ()
 void
 CosemApClient::NewRequest ()
 {
-  // Only when Data Application is present at the node
+  // Only when Data Concentratror Application is present at the node
   if (!m_recvData.IsNull ())
     {
       NS_LOG_FUNCTION_NOARGS ();

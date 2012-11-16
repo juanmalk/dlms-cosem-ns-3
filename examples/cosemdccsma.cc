@@ -121,7 +121,7 @@ main (int argc, char *argv[])
     }
 
   serverApps.Start (Seconds (1.0));
-  serverApps.Stop (Seconds (100.0));
+  serverApps.Stop (Seconds (900.0));
 
   // Cosem Application Clients  
   // (request data to Smart Meters every 1 min + delay of polling all smart meters)
