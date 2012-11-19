@@ -506,12 +506,13 @@ MeterPollResponseNormalMessageHeader::GetInstanceTypeId (void) const
 uint32_t 
 MeterPollResponseNormalMessageHeader::GetSerializedSize (void) const
 {
-  return 6;
+  return 10;
 }
  
 void 
 MeterPollResponseNormalMessageHeader::Serialize (Buffer::Iterator start) const
 {
+  WriteTo (start, m_remoteAddress);
   start.WriteHtonU32 (m_meterData);
   start.WriteHtonU16 (m_length);
 }
@@ -520,6 +521,7 @@ uint32_t
 MeterPollResponseNormalMessageHeader::Deserialize (Buffer::Iterator start)
 {
   Buffer::Iterator i = start;
+  ReadFrom (i, m_remoteAddress);
   m_meterData = i.ReadNtohU32 ();
   m_length = i.ReadNtohU16 ();
   return GetSerializedSize ();
@@ -528,7 +530,8 @@ MeterPollResponseNormalMessageHeader::Deserialize (Buffer::Iterator start)
 void 
 MeterPollResponseNormalMessageHeader::Print (std::ostream &os) const
 {
-  os << "Meter Data " << m_meterData
+  os << "Remote Data Concentrator/Smart Meter ip address " << m_remoteAddress
+     << "Meter Data " << m_meterData
      << "Length of complete meter data " << m_length;
 }
 
@@ -554,6 +557,17 @@ MeterPollResponseNormalMessageHeader::GetLength (void) const
   return m_length;
 }
 
+void 
+MeterPollResponseNormalMessageHeader::SetRemoteAddress (Ipv4Address remoteAddress)
+{
+ m_remoteAddress = remoteAddress;
+}
+
+Ipv4Address
+MeterPollResponseNormalMessageHeader::GetRemoteAddress (void) const
+{
+  return m_remoteAddress;
+}
 
 /*-----------------------------------------------------------------------------
  *  METER POLL RESPONSE BLOCK MESSAGE

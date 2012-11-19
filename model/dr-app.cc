@@ -26,6 +26,7 @@
 #include "ns3/socket-factory.h"
 #include "ns3/simulator.h"
 #include "ns3/nstime.h"
+#include "mdm-app.h"
 #include "dr-header.h"
 #include "dc-app.h"
 #include "dr-app.h"
@@ -50,10 +51,7 @@ DemandResponseApplication::DemandResponseApplication ()
 {
   // For debugging purposes
   //NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s DrApp created!");
-  m_nextTimeRequest = Seconds (0.0);
   m_meterData = 0;
-  m_partialMeterData = 0;
-  m_length = 0;
   m_sendEvent = EventId ();
   m_requestEvent = EventId ();
   m_commandEvent = EventId ();
@@ -66,22 +64,39 @@ DemandResponseApplication::~DemandResponseApplication ()
 }
 
 void 
-DemandResponseApplication::Send (Ptr<Packet> packet, Address currentDcAddress)
+DemandResponseApplication::Send (Ptr<Packet> packet, Address dcMdmAddress, uint8_t recipientType)
 {
   NS_ASSERT (m_sendEvent.IsExpired ());
   Simulator::Cancel (m_sendEvent);
 
-  if (Ipv4Address::IsMatchingType(currentDcAddress) == true)
+  if (Ipv4Address::IsMatchingType(dcMdmAddress) == true)
     {
-      // Connect Control Center to the current remote Data Concentrator
-      m_socket->Connect (InetSocketAddress (Ipv4Address::ConvertFrom (currentDcAddress), 5050));
 
-      // Call SEND Udp function (through UdpSocket)
-      m_socket->Send (packet); 
-      NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CC (" 
+      if (recipientType == DC)
+        {
+          // Connect Control Center to the current remote Data Concentrator
+          m_socket->Connect (InetSocketAddress (Ipv4Address::ConvertFrom (dcMdmAddress), 5050));
+
+          // Call SEND Udp function (through UdpSocket)
+          m_socket->Send (packet); 
+          NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CC (DR) (" 
                                                << Ipv4Address::ConvertFrom (m_localAddress) 
                                                << ") sent a request (" << packet->GetSize () << "B) to DC ("
-                                               << Ipv4Address::ConvertFrom (currentDcAddress) << ")");
+                                               << Ipv4Address::ConvertFrom (dcMdmAddress) << ")");
+        }
+
+        if (recipientType == MDM)
+        {
+          // Connect Control Center to the current remote Data Concentrator
+          m_socket->Connect (InetSocketAddress (Ipv4Address::ConvertFrom (dcMdmAddress), 5050));
+
+          // Call SEND Udp function (through UdpSocket)
+          m_socket->Send (packet); 
+          NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CC (" 
+                                               << Ipv4Address::ConvertFrom (m_localAddress) 
+                                               << ") sent a request of data (" << packet->GetSize () << "B) to MDM System ("
+                                               << Ipv4Address::ConvertFrom (dcMdmAddress) << ")");
+        }
     } 
 }	
 
@@ -93,71 +108,29 @@ DemandResponseApplication::Recv (Ptr<Socket> socket)
   TypeMessage typeHdr;
   // Retreive the packet sent by the Smart Grid Center
   pkt = socket->RecvFrom (from);  
- 
+  
   if (InetSocketAddress::IsMatchingType (from))
     {
      // Remove and copy the Demand Reponse Message Header from the packet
      pkt->RemoveHeader (typeHdr);
      MessageType typeMessage = typeHdr.GetMessageType (); 
+     m_mdmAddress = (Address)InetSocketAddress::ConvertFrom (from).GetIpv4 ();
    
      if (typeMessage == METER_POLL_RES_NORMAL)
        { 
          // Record the received information
          MeterPollResponseNormalMessageHeader hdr;
          pkt->RemoveHeader (hdr);
-         m_meterData = hdr.GetMeterData (); //---> check it when the CC is attending more than one DC: can m_meterData being overwritten?
-         NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CC (" 
+         m_meterData = hdr.GetMeterData (); 
+         NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CC (DR) (" 
                                                    << Ipv4Address::ConvertFrom (m_localAddress) 
-                                                   << ") received " << hdr.GetLength () << "B of data from DC ("
-                                                   << InetSocketAddress::ConvertFrom (from).GetIpv4 () << ")");
-
+                                                   << ") received " << hdr.GetLength () << "B of data from MDM System ("
+                                                   << Ipv4Address::ConvertFrom (m_mdmAddress) << ")");
+          
          // Event: Call Demand Response Mechanism to analyse the received data
-         Address currentDcAddress = Address (InetSocketAddress::ConvertFrom (from).GetIpv4 ());
-         m_demandResponseMechanismEvent = Simulator::Schedule (Seconds (0.0), &DemandResponseApplication::DemandResponseMechanism, this, m_meterData, currentDcAddress);
+         m_demandResponseMechanismEvent = Simulator::Schedule (Seconds (0.0), &DemandResponseApplication::DemandResponseMechanism, this, m_meterData, (Address)hdr.GetRemoteAddress ());
        }
-
-     if (typeMessage == METER_POLL_RES_BLOCK)
-       { 
-         // Record the received information
-         MeterPollResponseBlockMessageHeader hdr;
-         pkt->RemoveHeader (hdr);
-
-         if (hdr.GetLastBlock () == 0)
-           {
-             m_partialMeterData += hdr.GetMeterData (); //---> check it when the CC is attending more than one DC
-              
-              if (hdr.GetBlockNumber () == 1)
-                m_length = hdr.GetLength ();
-
-             NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CC (" << Ipv4Address::ConvertFrom (m_localAddress) 
-                                                          << ") received block (n = " << hdr.GetBlockNumber ()
-                                                          << ") " << m_partialMeterData << "B of " <<  m_length << "B from DC ("
-                                                          << InetSocketAddress::ConvertFrom (from).GetIpv4 () << ")");
-             
-             // Event: Request the next block of data
-             m_requestNextBlockEvent = Simulator::Schedule (Seconds (0.0), &DemandResponseApplication::RequestNextBlock, this, hdr.GetBlockNumber ());
-
-           }
-         else
-           {
-             m_partialMeterData += hdr.GetMeterData ();  //---> check it when the CC is attending more than one DC
-             m_meterData = m_partialMeterData;
-             m_partialMeterData = 0;
-
-             NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s CC (" 
-                                                   << Ipv4Address::ConvertFrom (m_localAddress) 
-                                                   << ") received block (LAST) " <<  m_meterData << "B of " 
-                                                   <<  m_length << "B from DC ("
-                                                   << InetSocketAddress::ConvertFrom (from).GetIpv4 () << ")");
-              
-             
-
-             // Event: Call Demand Response Mechanism to analyse the received data
-             Address currentDcAddress = Address (InetSocketAddress::ConvertFrom (from).GetIpv4 ());
-             m_demandResponseMechanismEvent = Simulator::Schedule (Seconds (0.0), &DemandResponseApplication::DemandResponseMechanism, this, m_meterData, currentDcAddress);
-            } 
-         }
-      }
+    }
 }
 
 void 
@@ -172,63 +145,15 @@ DemandResponseApplication::Request ()
 
   // Build the Demand Response Message and add header into the packet
   MeterPollRequestMessageHeader hdr;
-  hdr.SetReadingType (0); // Request the Total Average Active energy (kWh)
-  hdr.SetReadingTime (m_readingTime); // Time to read the smart Meter by Data Concentrator 
   packet->AddHeader (hdr); // Add the Demand Response Message header into the packet 
 
   typeHdr.SetMessageType (METER_POLL_REQ); // Define the Message type 
   packet->AddHeader (typeHdr); 
 
-  // Request of data to Data Concentrators at AMI network
-  std::vector<Ptr<Application> >::const_iterator i;
-  Time t = m_nextTimeRequest; // Next YY secs (established at script) 
-  uint32_t j = 0;
-  for (i = m_containerDcApp.Begin (); i != m_containerDcApp.End (); ++i)
-    { 
-      Ptr<Application> app = m_containerDcApp.Get (j++); 
-      Ptr<DataConcentratorApplication> dcApp = app->GetObject<DataConcentratorApplication> (); 
-      Address currentDcAddress = dcApp->GetLocalAddress ();
-      // Event: Send the PDU to the lower layers ---> each event has independent argument (i.e. currentDcAddress)???
-      m_sendEvent = Simulator::Schedule (t, &DemandResponseApplication::Send, this, packet, currentDcAddress);
-      t += Seconds (0.001); // increase by 1ms 
-    }
- 
-  // Event: Set a timer that permits to request new data to the AMI's Data Concentrators
-  m_requestEvent = Simulator::Schedule (m_nextTimeRequest, &DemandResponseApplication::Request, this);
+  m_sendEvent = Simulator::Schedule (Seconds (0.0), &DemandResponseApplication::Send, this, packet, m_mdmAddress, MDM);
+
 }
 
-void 
-DemandResponseApplication::RequestNextBlock (uint16_t blockNumber)
-{
-  NS_ASSERT (m_requestNextBlockEvent.IsExpired ());
-  Simulator::Cancel (m_requestNextBlockEvent);
-
-  TypeMessage typeHdr; 
-  // Create a Demand Response packet 
-  Ptr<Packet> packet = Create<Packet> (); 
-
-  // Build the Demand Response Message and add header into the packet
-  MeterPollRequestNextMessageHeader hdr;
-  hdr.SetBlockNumber (blockNumber); // Number of the meter data block received before
-  packet->AddHeader (hdr); // Add the Demand Response Message header into the packet 
-
-  typeHdr.SetMessageType (METER_POLL_REQ_NEXT); // Define the Message type 
-  packet->AddHeader (typeHdr); 
-
-  // Request the next block of data to Data Concentrators at AMI network
-  std::vector<Ptr<Application> >::const_iterator i;
-  Time t = Seconds(0.0); // Next YY secs (established at script) 
-  uint32_t j = 0;
-  for (i = m_containerDcApp.Begin (); i != m_containerDcApp.End (); ++i)
-    { 
-      Ptr<Application> app = m_containerDcApp.Get (j++); 
-      Ptr<DataConcentratorApplication> dcApp = app->GetObject<DataConcentratorApplication> (); 
-      Address currentDcAddress = dcApp->GetLocalAddress ();
-      // Event: Send the PDU to the lower layers ---> each event has independent argument (i.e. currentDcAddress)???
-      m_sendEvent = Simulator::Schedule (t, &DemandResponseApplication::Send, this, packet, currentDcAddress);
-      t += Seconds (0.001); // increase by 1ms 
-    }
-}
 
 void 
 DemandResponseApplication::Command (uint8_t signalType, uint32_t command, Address currentDcAddress, uint32_t customerId)
@@ -269,8 +194,8 @@ DemandResponseApplication::Command (uint8_t signalType, uint32_t command, Addres
       t = Seconds (0.0); // Immediately
     } 
 
-  // Event: Send the PDU to the lower layers ---> each event has independent argument (i.e. currentDcAddress)???
-  m_sendEvent = Simulator::Schedule (t, &DemandResponseApplication::Send, this, packet, currentDcAddress);
+  // Event: Send the PDU to the lower layers
+  m_sendEvent = Simulator::Schedule (t, &DemandResponseApplication::Send, this, packet, currentDcAddress, DC);
 }
 
 void 
@@ -280,8 +205,8 @@ DemandResponseApplication::DemandResponseMechanism (uint32_t data, Address curre
   Simulator::Cancel (m_demandResponseMechanismEvent);
 
   // XX-HERE: Call the Demand Response Mechanism, which return a command or price response ("signal")
-  //uint8_t signalType = S_PRICE;
-  uint8_t signalType = S_CONTROL;
+  uint8_t signalType = S_PRICE;
+  //uint8_t signalType = S_CONTROL;
   uint32_t command = 0;
   uint32_t customerId = 0;
  
@@ -290,45 +215,27 @@ DemandResponseApplication::DemandResponseMechanism (uint32_t data, Address curre
 }
 
 void 
-DemandResponseApplication::SetApplicationContainerDcApp (ApplicationContainer containerDcApp)
+DemandResponseApplication::SetLocalAddress (Address localAddress)
 {
- m_containerDcApp = containerDcApp;
+  m_localAddress = localAddress;
 }
 
-void 
-DemandResponseApplication::SetLocalAddress (Address ip)
-{
-  m_localAddress = ip;
-}
-
-Address
+Address 
 DemandResponseApplication::GetLocalAddress ()
 {
   return m_localAddress;
 }
 
 void 
-DemandResponseApplication::SetNextTimeRequest (Time nextTimeRequest)
+DemandResponseApplication::SetMdmApp (Ptr<MeterDataManagementApplication> mdmApp)
 {
-  m_nextTimeRequest = nextTimeRequest;
+  m_mdmApp = mdmApp;
 }
 
-Time 
-DemandResponseApplication::GetNextTimeRequest ()
+Ptr<MeterDataManagementApplication> 
+DemandResponseApplication::GetMdmApp ()
 {
-  return m_nextTimeRequest;
-}
-
-void
-DemandResponseApplication::SetReadingTime (uint32_t readingTime)
-{
-  m_readingTime = readingTime;
-}
-
-uint32_t
-DemandResponseApplication::GetReadingTime ()
-{ 
-  return m_readingTime;
+  return m_mdmApp;
 }
 
 void
@@ -354,8 +261,8 @@ DemandResponseApplication::StartApplication (void)
 
   m_socket->SetRecvCallback (MakeCallback (&DemandResponseApplication::Recv, this));
 
-  // Event: Request data to AMI's Data Concentrator for the first time
-  m_requestEvent = Simulator::Schedule (Seconds(0.0), &DemandResponseApplication::Request, this);
+   // build callback instance which points to DemandResponseApplication::GetLocalAddress function
+   m_mdmApp->SetDrAddressCallback (MakeCallback (&DemandResponseApplication::GetLocalAddress, this)); 
 }
 
 void 
@@ -364,7 +271,6 @@ DemandResponseApplication::StopApplication (void)
   // Cancel Events
   Simulator::Cancel (m_sendEvent);
   Simulator::Cancel (m_requestEvent);
-  Simulator::Cancel (m_requestNextBlockEvent);
   Simulator::Cancel (m_commandEvent);
   Simulator::Cancel (m_demandResponseMechanismEvent);
 }	

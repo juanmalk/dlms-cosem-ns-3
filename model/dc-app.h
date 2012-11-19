@@ -67,7 +67,7 @@ public:
   void SetCosemApClient (Ptr<CosemApClient> cosemApClient);
   Ptr<CosemApClient> GetCosemApClient ();
   
-  // Set & GET the cosemApClient pointer
+  // Set & GET the DcMemory pointer
   void SetDcMemory (Ptr<DcMemory> dcMemory);
   Ptr<DcMemory> GetDcMemory ();
 

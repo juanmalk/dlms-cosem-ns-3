@@ -23,6 +23,8 @@
 
 #include "ns3/header.h"
 #include "ns3/nstime.h"
+#include "ns3/address.h"
+#include "ns3/address-utils.h"
 
 namespace ns3 {
 
@@ -194,11 +196,15 @@ public:
   uint32_t GetMeterData (void) const;
   void SetLength (uint16_t length); 
   uint16_t GetLength (void) const;  
+  void SetRemoteAddress (Ipv4Address remoteAddress); 
+  Ipv4Address GetRemoteAddress (void) const;  
+
 
 private:
 
   uint32_t m_meterData; // Meter Data (4B)
   uint16_t m_length;   // Length of the complete meter data block stored by the Data Concentrator (2B)
+  Ipv4Address m_remoteAddress; // Remote Address (DataConcentrator/SmartMeter) (4B)
 };
 
 /*

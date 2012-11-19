@@ -13,10 +13,12 @@ def build(bld):
         'model/dc-app.cc',
         'model/dr-app.cc',
         'model/dr-header.cc',
+        'model/mdm-app.cc',
         'helper/udp-cosem-client-helper.cc',
         'helper/udp-cosem-server-helper.cc',
         'helper/data-concentrator-helper.cc',
         'helper/demand-response-application-helper.cc',
+        'helper/mdm-application-helper.cc',
         ]
 
    ## module_test = bld.create_ns3_module_test_library('cosem')
@@ -37,10 +39,12 @@ def build(bld):
         'model/dr-header.h',
         'model/dc-app.h',
         'model/dr-app.h',
+        'model/mdm-app.h',
         'helper/udp-cosem-client-helper.h',
         'helper/udp-cosem-server-helper.h',
         'helper/data-concentrator-helper.h',
         'helper/demand-response-application-helper.h',
+        'helper/mdm-application-helper.h',
         ]
 
    # bld.ns3_python_bindings()

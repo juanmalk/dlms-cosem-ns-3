@@ -26,6 +26,7 @@
 #include "ns3/string.h"
 #include "ns3/demand-response-application-helper.h"
 #include "ns3/dr-app.h"
+#include "ns3/mdm-app.h"
 
 NS_LOG_COMPONENT_DEFINE ("DemandResponseApplicationHelper");
 
@@ -35,12 +36,10 @@ DemandResponseApplicationHelper::DemandResponseApplicationHelper ()
 {
 }
 
-DemandResponseApplicationHelper::DemandResponseApplicationHelper (ApplicationContainer dataConcentratorAppContainer, Address centerIp, Time interval, uint32_t readingTime)
+DemandResponseApplicationHelper::DemandResponseApplicationHelper (Address drSystemIp, ApplicationContainer mdmAppContainer)
 {
-  m_dataConcentratorApplicationContainer = dataConcentratorAppContainer;
-  m_centerIpAddress = Address (centerIp);
-  m_interval = interval;
-  m_readingTime = readingTime;;
+  m_drSystemIpAddress = Address (drSystemIp);
+  m_mdmAppContainer =  mdmAppContainer;
 }
 
 void
@@ -62,15 +61,14 @@ DemandResponseApplicationHelper::Install (NodeContainer c)
       // Create a DemandResponseApplication Object
       Ptr<DemandResponseApplication> demandResponseApplication = CreateObject<DemandResponseApplication> ();
       // Set the SmatGrid Control Center Address
-      demandResponseApplication->SetLocalAddress (m_centerIpAddress);
-      // Retreive the pointer of ApplicationContainer
-      demandResponseApplication->SetApplicationContainerDcApp (m_dataConcentratorApplicationContainer);
-      // Set interval for requesting data to remote Data Doncentrator and the Reading time to poll the meter data 
-      demandResponseApplication->SetNextTimeRequest (m_interval);
-      demandResponseApplication->SetReadingTime (m_readingTime);
-      // Add the DataConcentratorApplication created to the Node
+      demandResponseApplication->SetLocalAddress (m_drSystemIpAddress);
+      // Set the pointer to the Meter Data Management object attached at the node
+      Ptr<Application> app = m_mdmAppContainer.Get (0); // assuming only one Meter Data Management Application per node
+      Ptr<MeterDataManagementApplication> mdmApp = app->GetObject<MeterDataManagementApplication> ();  
+      demandResponseApplication->SetMdmApp (mdmApp);
+      // Add the DemandResponseApplication created to the Node
       node->AddApplication (demandResponseApplication);
-      // Add the DataConcentratorApplication created to the ApplicationContainer
+      // Add the DemandResponseApplication created to the ApplicationContainer
       apps.Add (demandResponseApplication);   
     }
   return apps;

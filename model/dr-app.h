@@ -21,7 +21,6 @@
 #ifndef DR_APP_H
 #define DR_APP_H
 
-#include <map>
 #include "ns3/application.h"
 #include "ns3/application-container.h"
 #include "ns3/address.h"
@@ -32,10 +31,11 @@ namespace ns3 {
 
 class Socket;
 class Packet;
+class MeterDataManagementApplication;
 
 
 /** 
- * Application for Demand Response (DR): Send/Receive Demand Response/Requesting/Consumption messages
+ * Application for Demand Response (DR): Send/Receive Demand Response messages
  *
  */
 
@@ -48,41 +48,34 @@ public:
  
   virtual ~DemandResponseApplication ();
 
-  // Send requesting/demand response packet to AMI netowrk's Data Concentrator 
-  void Send (Ptr<Packet> packet, Address currentDcAddress);
+  // Send demand response/requesting packet to AMI netowrk's Data Concentrator/Meter Data Management Systems
+  void Send (Ptr<Packet> packet, Address DcMdmAddress, uint8_t recipientType);
 	
-  // Receive data (consumption signal) from AMI netowrk's Data Concentrator 
+  // Receive data from Meter Data Management System
   void Recv (Ptr<Socket> socket);
 
-  // Request of data to AMI netowrk's Data Concentrator 
+  // Request data to Meter Data Management System
   void Request ();
 
-  // Request the next block of data to AMI netowrk's Data Concentrator 
-  void RequestNextBlock (uint16_t blockNumber);
-
-  // Build command message to be sent by the Control Center to AMI netowrk's Data Concentrator 
+  // Build command message to be sent by the Control Center to AMI netowrk's Data Concentrator/Cosem Smart Meter 
   void Command (uint8_t signalType, uint32_t command, Address currentDcAddress, uint32_t customerId);
 
   // Call Demand Response Mechanism
   void DemandResponseMechanism (uint32_t data, Address currentDcAddres);
 
-  // Retrieve a reference of Application Container (DataConcentratorApplication) object
-  void SetApplicationContainerDcApp (ApplicationContainer containerDcApp);
-
   // Set & GET the local Ip address
-  void SetLocalAddress (Address ip);
+  void SetLocalAddress (Address localAddress);
   Address GetLocalAddress ();
-  
-  // Set & Get Next Time Request AMI netowrk's Data Concentrator  
-  void SetNextTimeRequest (Time nextTimeRequest);
-  Time GetNextTimeRequest ();
 
-  // Set & Get Reading time to poll the meter data 
-  void SetReadingTime (uint32_t readingTime);
-  uint32_t GetReadingTime ();
+  // Set & GET the MeterDataManagementApplication pointer
+  void SetMdmApp (Ptr<MeterDataManagementApplication> mdmApp);
+  Ptr<MeterDataManagementApplication> GetMdmApp ();
 
   // Type of Demand Response command signal
   enum SignalType { S_CONTROL, S_PRICE }; 
+
+  // Type of Recipient
+  enum RecipientType { DC, MDM }; 
 
 protected:
 
@@ -94,18 +87,14 @@ private:
   virtual void StopApplication (void);
 
   Ptr<Socket> m_socket;
-  ApplicationContainer m_containerDcApp; // Container of DcApplication in the scenario
   Address m_localAddress;  // Local Ip address 
-  Time m_nextTimeRequest; // Next time request of data to AMI netowrk's Data Concentrator 
-  uint32_t m_readingTime; // Reading time to poll the meter data 
+  Address m_mdmAddress;  // Meter Data Management System Ip address 
   uint32_t m_meterData; // Meter Data: Input to Demand Response Engine
-  uint32_t m_partialMeterData; // Parcial Meter Data (block)
-  uint16_t m_length;   // Length of the complete meter data block received by the Control Center
+  Ptr<MeterDataManagementApplication> m_mdmApp;
 
   // Helpers parameters
   EventId m_sendEvent;
   EventId m_requestEvent;
-  EventId m_requestNextBlockEvent;
   EventId m_commandEvent;
   EventId m_demandResponseMechanismEvent;
 };

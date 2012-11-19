@@ -70,7 +70,7 @@ DataConcentratorApplication::Send (Ptr<Packet> packet)
   m_socket->Send (packet); 
   NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s DC (" 
                                                << Ipv4Address::ConvertFrom (m_localAddress) 
-                                               << ") sent a reponse (" << packet->GetSize () << "B) to CC ("
+                                               << ") sent a reponse (" << packet->GetSize () << "B) to CC (MDM) ("
                                                << Ipv4Address::ConvertFrom (m_sgCenterAddress) << ")");
 }	
 
@@ -99,7 +99,7 @@ DataConcentratorApplication::RecvSg (Ptr<Socket> socket)
        { 
          NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s DC (" 
                                                  << Ipv4Address::ConvertFrom (m_localAddress) 
-                                                 << ") received a request of data (" << pkt->GetSize () << "B) from CC ("
+                                                 << ") received a request of data (" << pkt->GetSize () << "B) from CC (MDM) ("
                                                  << InetSocketAddress::ConvertFrom (from).GetIpv4 () << ")");
 
          // Record the received information
@@ -213,7 +213,7 @@ DataConcentratorApplication::RecvSg (Ptr<Socket> socket)
        { 
          NS_LOG_INFO (Simulator::Now ().GetSeconds () << "s DC (" 
                                                  << Ipv4Address::ConvertFrom (m_localAddress) 
-                                                 << ") received an udpated rates command (" << pkt->GetSize () << "B) from CC ("
+                                                 << ") received an udpated rates command (" << pkt->GetSize () << "B) from CC (DR) ("
                                                  << InetSocketAddress::ConvertFrom (from).GetIpv4 () << ")");
          // Record the received information
          PriceMessageHeader hdr;
@@ -300,7 +300,7 @@ DataConcentratorApplication::StartApplication (void)
     {
       TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
       m_socket = Socket::CreateSocket (GetNode (), tid);
-      InetSocketAddress local = InetSocketAddress (Ipv4Address::ConvertFrom(m_localAddress), 5050);
+      InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), 5050);
       m_socket->Bind (local);
       m_socket->Connect (InetSocketAddress (Ipv4Address::ConvertFrom (m_sgCenterAddress), 5050));
     }

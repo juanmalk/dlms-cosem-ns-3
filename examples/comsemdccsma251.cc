@@ -25,14 +25,15 @@
 #include "ns3/udp-cosem-server-helper.h"
 #include "ns3/data-concentrator-helper.h"
 #include "ns3/demand-response-application-helper.h"
+#include "ns3/mdm-application-helper.h"
 
 // Default Network Topology
-//
-// (SG)   10.1.1.0   (DC) (SM1) (SM2) ... (SM252)
-//  n0 -------------- n1   n2   n3    ...  n252
-//       fiber (p2p)   |    |    |          |
-//                     ====================== (CSMA Channel)
-//                         LAN 10.1.2.0
+// 
+// (CC-DR)     (CC-MDM)   10.1.1.0     (DC) (SM1) (SM2) ... (SM(i))
+//    n0          n1------------------- n2   n3   n4    ...  n(i)
+//    |           |     fiber (p2p)     |    |    |          |
+//    =============                     ====================== (CSMA Channel)
+//    LAN 10.1.3.0                           LAN 10.1.2.0
 
 
 using namespace ns3;
@@ -43,10 +44,11 @@ int
 main (int argc, char *argv[])
 {
   bool verbose = true;
-  uint32_t nCsma = 251;
+  uint32_t nAmiCsma = 251;
+  uint32_t nCcCsma = 1;
 
   CommandLine cmd;
-  cmd.AddValue ("nCsma", "Number of \"extra\" CSMA nodes/devices", nCsma);
+  cmd.AddValue ("nAmiCsma", "Number of \"extra\" CSMA nodes/devices", nAmiCsma);
   cmd.AddValue ("verbose", "Tell echo applications to log if true", verbose);
 
   cmd.Parse (argc,argv);
@@ -59,22 +61,33 @@ main (int argc, char *argv[])
       LogComponentEnable ("CosemApplicationsProcessServer", LOG_LEVEL_INFO);
       LogComponentEnable ("UdpCosemWrapperLayerClient", LOG_LEVEL_INFO);
       LogComponentEnable ("UdpCosemWrapperLayerServer", LOG_LEVEL_INFO);
-      LogComponentEnable ("UdpCosemServerHelper", LOG_LEVEL_INFO);
       LogComponentEnable ("DataConcentratorApplication", LOG_LEVEL_INFO);
       LogComponentEnable ("DemandResponseApplication", LOG_LEVEL_INFO);
-      LogComponentEnable ("DataConcentratorApplicationHelper", LOG_LEVEL_INFO);
-      LogComponentEnable ("UdpCosemClientHelper", LOG_LEVEL_INFO);
+      LogComponentEnable ("MeterDataManagementApplication", LOG_LEVEL_INFO);
     }
 
-  nCsma = nCsma == 0 ? 1 : nCsma;
+  nAmiCsma = nAmiCsma == 0 ? 1 : nAmiCsma;
+  nCcCsma = nCcCsma == 0 ? 1 : nCcCsma;
 
+// -------------------------------------------------------------------------------
+//  TOPOLOGY CONSTRUCTION & CONFIGURATION
+// -------------------------------------------------------------------------------
+
+  // Backhaul Nodes creation
   NodeContainer p2pNodes;
   p2pNodes.Create (2);
 
-  NodeContainer csmaNodes;
-  csmaNodes.Add (p2pNodes.Get (1));
-  csmaNodes.Create (nCsma);
+  // AMI Nodes creation
+  NodeContainer AmiCsmaNodes;  // AMI network
+  AmiCsmaNodes.Add (p2pNodes.Get (1));
+  AmiCsmaNodes.Create (nAmiCsma);
  
+  // CC Nodes creation
+  NodeContainer CcCsmaNodes; // CC network
+  CcCsmaNodes.Add (p2pNodes.Get (0));
+  CcCsmaNodes.Create (nCcCsma);
+
+  // Backhaul Link configuration & NetDevice instalation
   PointToPointHelper pointToPoint; // fiber
   pointToPoint.SetDeviceAttribute ("DataRate", StringValue ("622Mbps"));
   pointToPoint.SetChannelAttribute ("Delay", StringValue ("1ms"));
@@ -82,46 +95,70 @@ main (int argc, char *argv[])
   NetDeviceContainer p2pDevices;
   p2pDevices = pointToPoint.Install (p2pNodes);
 
-  CsmaHelper csma;
-  csma.SetChannelAttribute ("DataRate", StringValue ("100Mbps"));
-  csma.SetChannelAttribute ("Delay", TimeValue (NanoSeconds (6560)));
+  // AMI Links configuration & NetDevice instalation
+  CsmaHelper AmiCsma; 
+  AmiCsma.SetChannelAttribute ("DataRate", StringValue ("100Mbps"));
+  AmiCsma.SetChannelAttribute ("Delay", TimeValue (NanoSeconds (6560)));
 
-  NetDeviceContainer csmaDevices;
-  csmaDevices = csma.Install (csmaNodes);
+  NetDeviceContainer AmiCsmaDevices;
+  AmiCsmaDevices = AmiCsma.Install (AmiCsmaNodes);
 
+  // Control Center Links configuration & NetDevice instalation
+  CsmaHelper CcCsma;
+  CcCsma.SetChannelAttribute ("DataRate", StringValue ("100Mbps"));
+  CcCsma.SetChannelAttribute ("Delay", TimeValue (NanoSeconds (6560)));
+
+  NetDeviceContainer CcCsmaDevices;
+  CcCsmaDevices = CcCsma.Install (CcCsmaNodes);
+
+  // Internet Stack instalation 
   InternetStackHelper stack;
-  stack.Install (p2pNodes.Get (0));
-  stack.Install (csmaNodes);
+  stack.Install (AmiCsmaNodes);
+  stack.Install (CcCsmaNodes);
+
+// -------------------------------------------------------------------------------
+//  BACKHAUL CONFIGURATION
+// -------------------------------------------------------------------------------
 
   Ipv4AddressHelper address;
   address.SetBase ("10.1.1.0", "255.255.255.0");
   Ipv4InterfaceContainer p2pInterfaces;
   p2pInterfaces = address.Assign (p2pDevices);
 
-  address.SetBase ("10.1.2.0", "255.255.255.0");
-  Ipv4InterfaceContainer csmaInterfaces;
-  Ipv4InterfaceContainer dcCsmaInterfaces;
-  dcCsmaInterfaces.Add (address.Assign (csmaDevices.Get (0)));
+// -------------------------------------------------------------------------------
+//  AMI NETWORK CONFIGURATION
+// -------------------------------------------------------------------------------
 
-  for (uint32_t i = 1; i < csmaNodes.GetN (); ++i)
+  address.SetBase ("10.1.2.0", "255.255.255.0");
+  Ipv4InterfaceContainer AmiCsmaInterfaces;
+  Ipv4InterfaceContainer dcCsmaInterfaces;
+  dcCsmaInterfaces.Add (address.Assign (AmiCsmaDevices.Get (0)));
+
+  for (uint32_t i = 1; i < AmiCsmaNodes.GetN (); ++i)
      {
-        csmaInterfaces.Add (address.Assign (csmaDevices.Get (i)));
+        AmiCsmaInterfaces.Add (address.Assign (AmiCsmaDevices.Get (i)));
      }
 
-  //csmaInterfaces = address.Assign (csmaDevices);
+// -------------------------------------------------------------------------------
+//  CONTROL CENTER NETWORK CONFIGURATION
+// -------------------------------------------------------------------------------
+ 
+  address.SetBase ("10.1.3.0", "255.255.255.0");
+  Ipv4InterfaceContainer CcCsmaInterfaces = address.Assign (CcCsmaDevices);
 
-  // Cosem & DataConcentrator & RequestingSG Applications
-
+// -------------------------------------------------------------------------------
+//  COSEM & DATA CONCENTRATOR CONFIGURATION
+// -------------------------------------------------------------------------------
+ 
   // Cosem Applications Servers 
-  UdpCosemServerHelper cosemServer (csmaInterfaces);
+  UdpCosemServerHelper cosemServer (AmiCsmaInterfaces);
   ApplicationContainer serverApps;
-  for (uint32_t i = 1; i < csmaNodes.GetN (); ++i)
+  for (uint32_t i = 1; i < AmiCsmaNodes.GetN (); ++i)
     {
-       serverApps.Add (cosemServer.Install (csmaNodes.Get (i)));
+       serverApps.Add (cosemServer.Install (AmiCsmaNodes.Get (i)));
     }
-
   serverApps.Start (Seconds (1.0));
-  serverApps.Stop (Seconds (100.0));
+  serverApps.Stop (Seconds (900.0));
 
   // Cosem Application Clients  
   // (request data to Smart Meters every 1 min + delay of polling all smart meters)
@@ -136,9 +173,20 @@ main (int argc, char *argv[])
   dcApps.Start (Seconds (1.001));
   dcApps.Stop (Seconds (900.0));
 
-  // Demand Response Application on Control Center (request data to Data Concentrator every 3 min)
-  DemandResponseApplicationHelper drHelper (dcApps, p2pInterfaces.GetAddress (0), Seconds (180.0), 60.0);
-  ApplicationContainer drApps = drHelper.Install (p2pNodes.Get (0));
+// -------------------------------------------------------------------------------
+//  METER DATA MANAGEMENT & DEMAND RESPONSE APPLICATIONS CONFIGURATION 
+// -------------------------------------------------------------------------------
+ 
+  
+  // Meter Data Management Application on Control Center (request data to Data Concentrator every 3 min)
+  MeterDataManagementApplicationHelper mdmHelper (dcApps, p2pInterfaces.GetAddress (0), Seconds (180.0), 60.0);
+  ApplicationContainer mdmApps = mdmHelper.Install (p2pNodes.Get (0));
+  mdmApps.Start (Seconds (0.0));
+  mdmApps.Stop (Seconds (900.0));
+
+  // Demand Response Application on Control Center (Send demand response signals to Data Cocentrator)
+  DemandResponseApplicationHelper drHelper (CcCsmaInterfaces.GetAddress (1), mdmApps);
+  ApplicationContainer drApps = drHelper.Install (CcCsmaNodes.Get(1));
   drApps.Start (Seconds (0.0));
   drApps.Stop (Seconds (900.0));
 
@@ -147,7 +195,8 @@ main (int argc, char *argv[])
   Simulator::Stop (Seconds (950.0));
   
   pointToPoint.EnablePcapAll ("second");
-  csma.EnablePcap ("second", csmaDevices.Get (1), true);
+  AmiCsma.EnablePcap ("second", AmiCsmaDevices.Get (1), true);
+  CcCsma.EnablePcap ("second", CcCsmaDevices.Get (1), true);
 
   Simulator::Run ();
   Simulator::Destroy ();

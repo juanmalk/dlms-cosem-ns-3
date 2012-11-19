@@ -29,8 +29,6 @@ namespace ns3 {
 class ApplicationContainer;
 class ObjectFactory;
 class NodeContainer;
-class Node;
-class Time;
 
 class DemandResponseApplicationHelper
 {
@@ -38,7 +36,7 @@ public:
 
   DemandResponseApplicationHelper ();
 
-  DemandResponseApplicationHelper (ApplicationContainer dataConcentratorAppContainer, Address centerIp, Time interval, uint32_t readingTime);
+  DemandResponseApplicationHelper (Address drSystemIp, ApplicationContainer mdmAppContainer);
 
   // Record an attribute to be set in each Application after it is is created
   void SetAttribute (std::string name, const AttributeValue &value);
@@ -49,14 +47,9 @@ public:
    */
   ApplicationContainer Install (NodeContainer c);
   
-  // Create and Aggregate the CosemServer Stack to the node ("physical device")
-  void AddCosemServerStack (Ptr<Node> node);
-
 private:
-  ApplicationContainer m_dataConcentratorApplicationContainer;
-  Address m_centerIpAddress;
-  Time m_interval;
-  uint32_t m_readingTime;
+  Address m_drSystemIpAddress;
+  ApplicationContainer m_mdmAppContainer;
   ObjectFactory m_factory;
 };
 
