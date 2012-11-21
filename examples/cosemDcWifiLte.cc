@@ -29,25 +29,27 @@
 #include "ns3/mobility-module.h"
 #include "ns3/lte-module.h"
 #include "ns3/wifi-module.h"
+#include "ns3/csma-module.h"
 #include "ns3/applications-module.h"
 #include "ns3/point-to-point-helper.h"
 #include "ns3/config-store.h"
-//#include "ns3/gtk-config-store.h"
 #include "ns3/udp-cosem-client-helper.h"
 #include "ns3/udp-cosem-server-helper.h"
 #include "ns3/data-concentrator-helper.h"
 #include "ns3/demand-response-application-helper.h"
+#include "ns3/mdm-application-helper.h"
+#include "ns3/flow-monitor-module.h"
 
 // Default Network Topology
-//
-//      Wifi 10.1.3.0
-//                          AP(Wifi)
-//  *      *         *       *
-//  |      |         |       |    7.0.0.0                                   1.0.0.0
-// SM(1)  SM(0) ... SM(n)   DC ------------- eNB ================= PGW  =================  CC
-//                           |   LTE channel (1)      EPC Network  (1)       Internet      (2)
-//                           x                                           
-//                          UE(LTE)
+//                                                                                    (Control Center)  
+//      Wifi 10.1.3.0                                                                           DR
+//                          AP(Wifi)                                                            |
+//  *      *         *       *                                                          =========== LAN 10.1.2.0  
+//  |      |         |       |    7.0.0.0                                   1.0.0.0      |   
+// SM(1)  SM(0) ... SM(n)   DC ------------- eNB ================= PGW  ============== GW-MDM   
+//                           |   LTE channel (1)     PC Network    (1)     Internet               
+//  (AMI Network)            x                                                               
+//                          UE(LTE)                                                       
 
 using namespace ns3;
 
@@ -64,18 +66,23 @@ main (int argc, char *argv[])
 {
 
   bool verbose = true;  // For COSEM
-  uint16_t numberOfNodes = 2;  // LTE nodes
-  uint32_t nWifi = 3; // Smart Meters
+  uint16_t nUeNodes = 1;  // UE LTE nodes
+  uint16_t nBsNodes = 1;  // BS LTE nodes
+  uint32_t nWifi = 1; // Smart Meters
+  uint32_t nCcCsma = 1; // Control Center servers (DR)
   double simTime = 30.0;
   double distance = 60.0;
   double interPacketInterval = 100;
 
   // Command line arguments
   CommandLine cmd;
-  cmd.AddValue("numberOfNodes", "Number of eNodeBs + UE pairs", numberOfNodes);
+  cmd.AddValue("nUeNodes", "Number of eNodeBs + UE pairs", nUeNodes);
   cmd.AddValue("simTime", "Total duration of the simulation [s])", simTime);
   cmd.AddValue("distance", "Distance between eNBs [m]", distance);
   cmd.AddValue("interPacketInterval", "Inter packet interval [ms])", interPacketInterval);
+  cmd.AddValue ("nAmiCsma", "Number of \"extra\" CSMA nodes/devices", nCcCsma);
+  cmd.AddValue ("verbose", "Tell echo applications to log if true", verbose);
+
   cmd.Parse(argc, argv);
 
   // Wifi
@@ -95,13 +102,15 @@ main (int argc, char *argv[])
       LogComponentEnable ("CosemApplicationsProcessServer", LOG_LEVEL_INFO);
       LogComponentEnable ("UdpCosemWrapperLayerClient", LOG_LEVEL_INFO);
       LogComponentEnable ("UdpCosemWrapperLayerServer", LOG_LEVEL_INFO);
-      LogComponentEnable ("UdpCosemServerHelper", LOG_LEVEL_INFO);
       LogComponentEnable ("DataConcentratorApplication", LOG_LEVEL_INFO);
       LogComponentEnable ("DemandResponseApplication", LOG_LEVEL_INFO);
-      LogComponentEnable ("DataConcentratorApplicationHelper", LOG_LEVEL_INFO);
+      LogComponentEnable ("MeterDataManagementApplication", LOG_LEVEL_INFO);
     }
   // 
-  
+
+  // CSMA  
+  nCcCsma = nCcCsma == 0 ? 1 : nCcCsma;
+
 // -------------------------------------------------------------------------------
 //  LTE + EPC CONFIGURATION
 // -------------------------------------------------------------------------------
@@ -149,12 +158,12 @@ main (int argc, char *argv[])
 
   NodeContainer ueNodes;
   NodeContainer enbNodes;
-  enbNodes.Create(numberOfNodes);
-  ueNodes.Create(numberOfNodes);
+  enbNodes.Create(nBsNodes);
+  ueNodes.Create(nUeNodes);
 
   // Install Mobility Model
   Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator> ();
-  for (uint16_t i = 0; i < numberOfNodes; i++)
+  for (uint16_t i = 0; i < nUeNodes; i++)
     {
       positionAlloc->Add (Vector(distance * i, 0, 0));
     }
@@ -169,7 +178,7 @@ main (int argc, char *argv[])
   NetDeviceContainer ueLteDevs = lteHelper->InstallUeDevice (ueNodes);
 
   // Attach one UE per eNodeB
-  for (uint16_t i = 0; i < numberOfNodes; i++)
+  for (uint16_t i = 0; i < nUeNodes; i++)
       {
         lteHelper->Attach (ueLteDevs.Get(i), enbLteDevs.Get(i));
       }
@@ -186,6 +195,7 @@ main (int argc, char *argv[])
       // Set the default gateway for the UE
       Ptr<Ipv4StaticRouting> ueStaticRouting = ipv4RoutingHelper.GetStaticRouting (ueNode->GetObject<Ipv4> ());
       ueStaticRouting->SetDefaultRoute (epcHelper->GetUeDefaultGatewayAddress (), 1);
+      //ueStaticRouting->AddNetworkRouteTo (Ipv4Address ("10.1.2.0"), Ipv4Mask ("255.255.255.0"), 1);   
     }
   lteHelper->ActivateEpsBearer (ueLteDevs, EpsBearer (EpsBearer::NGBR_VIDEO_TCP_DEFAULT), EpcTft::Default ());
 
@@ -193,9 +203,44 @@ main (int argc, char *argv[])
   // Uncomment to enable PCAP tracing
   //p2ph.EnablePcapAll("lena-epc-first");
 
+// -------------------------------------------------------------------------------
+//  CSMA CONTROL CENTER NETWORK CONFIGURATION
+// -------------------------------------------------------------------------------
+
+  // CC Nodes creation
+  NodeContainer CcCsmaNodes; 
+  CcCsmaNodes.Add (remoteHost); // Add the remote Host (GW) node created to the CSMA network
+  CcCsmaNodes.Create (nCcCsma);
+
+  // Control Center Links configuration & NetDevice instalation
+  CsmaHelper CcCsma;
+  CcCsma.SetChannelAttribute ("DataRate", StringValue ("100Mbps"));
+  CcCsma.SetChannelAttribute ("Delay", TimeValue (NanoSeconds (6560)));
+
+  NetDeviceContainer CcCsmaDevices;
+  CcCsmaDevices = CcCsma.Install (CcCsmaNodes);
+  
+  // Internet Stack instalation (without the remoteHost)
+  for (uint32_t i = 1; i < CcCsmaNodes.GetN (); ++i)
+     {
+        internet.Install (CcCsmaNodes.Get (i));
+     }
+
+  // Assign Ip Address
+  Ipv4AddressHelper addressCC;
+  addressCC.SetBase ("10.1.2.0", "255.255.255.0");
+  Ipv4InterfaceContainer CcCsmaInterfaces = addressCC.Assign (CcCsmaDevices);
+
+  // Set the default gateway (Router) for CC server
+  //for (uint32_t i = 1; i < CcCsmaNodes.GetN (); ++i)
+    // {
+       Ptr<Ipv4StaticRouting> ccStaticRouting = ipv4RoutingHelper.GetStaticRouting (CcCsmaNodes.Get (1)->GetObject<Ipv4> ());
+       ccStaticRouting->SetDefaultRoute (CcCsmaInterfaces.GetAddress (0), 1);
+       //ccStaticRouting->AddNetworkRouteTo (Ipv4Address ("10.1.2.0"), Ipv4Mask ("255.255.255.0"), Ipv4Address ("1.0.0.0"), 1);   
+   //  }
 
 // -------------------------------------------------------------------------------
-//  WIFI CONFIGURATION
+//  WIFI AMI NETWORK CONFIGURATION
 // -------------------------------------------------------------------------------
   NodeContainer wifiStaNodes;
   wifiStaNodes.Create (nWifi);
@@ -263,25 +308,22 @@ main (int argc, char *argv[])
 
   Ipv4InterfaceContainer dcWifiInterfaces;
   dcWifiInterfaces.Add (address.Assign (apDevices));
- 
+
 // -------------------------------------------------------------------------------
 //  COSEM & DATA CONCENTRATOR CONFIGURATION
 // -------------------------------------------------------------------------------
  
- // Cosem Application
-
+  // Cosem Applications Servers 
   UdpCosemServerHelper cosemServer (serverInterfaces);
-
   ApplicationContainer serverApps = cosemServer.Install (wifiStaNodes);
   serverApps.Start (Seconds (1.0));
   serverApps.Stop (Seconds (29.0));
 
+  // Cosem Application Clients 
   UdpCosemClientHelper cosemClient (serverApps, dcWifiInterfaces, Seconds (2.0)); 
-
   ApplicationContainer clientApps = cosemClient.Install (ueNodes.Get (0));
   clientApps.Start (Seconds (1.0));
   clientApps.Stop (Seconds (29.0));
-
 
   // Data Concentrator Application
   DataConcentratorApplicationHelper dc (clientApps, internetIpIfaces.GetAddress (1), ueIpIface.GetAddress (0)); 
@@ -290,25 +332,58 @@ main (int argc, char *argv[])
   dcApps.Stop (Seconds (29.0));
 
 // -------------------------------------------------------------------------------
-//  DEMAND RESPONSE APPLICATION CONFIGURATION (ON REMOT HOST)
+//  METER DATA MANAGEMENT & DEMAND RESPONSE APPLICATIONS CONFIGURATION 
 // -------------------------------------------------------------------------------
+ 
+  // Meter Data Management Application on Control Center
+  MeterDataManagementApplicationHelper mdmHelper (dcApps, CcCsmaInterfaces.GetAddress (0), Seconds (5.0), 2.0);
+  ApplicationContainer mdmApps = mdmHelper.Install (CcCsmaNodes.Get (0)); 
+  mdmApps.Start (Seconds (1.0));
+  mdmApps.Stop (Seconds (29.0));
 
-  // Demand Response Application on Control Center (request data to Data Concentrator every 3 min)
-  DemandResponseApplicationHelper drHelper (dcApps, internetIpIfaces.GetAddress (1), Seconds (5.0), 2.0);
-  ApplicationContainer drApps = drHelper.Install (remoteHost);
-  drApps.Start (Seconds (0.0));
+  // Demand Response Application on Control Center (Send demand response signals to Data Cocentrator)
+  DemandResponseApplicationHelper drHelper (CcCsmaInterfaces.GetAddress (1), mdmApps);
+  ApplicationContainer drApps = drHelper.Install (CcCsmaNodes.Get (1));
+  drApps.Start (Seconds (1.0));
   drApps.Stop (Seconds (29.0));
 
-//  Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
+  //Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
  
   Simulator::Stop(Seconds(simTime));
 
   phy.EnablePcap ("third", apDevices.Get (0));
+  CcCsma.EnablePcap ("second", CcCsmaDevices.Get (1), true);
 
-  Simulator::Run();
 
-  /*GtkConfigStore config;
-  config.ConfigureAttributes();*/
+// -------------------------------------------------------------------------------
+//  FlowMonitor CONFIGURATION
+// -------------------------------------------------------------------------------
+
+  //Create a new FlowMonitorHelper object
+  FlowMonitorHelper flowmon;
+  Ptr<FlowMonitor> monitor;
+  monitor = flowmon.Install(CcCsmaNodes.Get (0));
+  monitor = flowmon.Install(CcCsmaNodes.Get (1));
+  monitor = flowmon.Install(ueNodes.Get (0));
+ 
+  for (uint32_t i = 0; i < wifiStaNodes.GetN (); ++i)
+     {
+        monitor = flowmon.Install(wifiStaNodes.Get (i));
+     }
+
+  // Conﬁgure some histogram attributes
+  monitor->SetAttribute ("DelayBinWidth",
+                           DoubleValue(0.01));
+  monitor->SetAttribute ("JitterBinWidth",
+                           DoubleValue(0.001));
+  monitor->SetAttribute ("PacketSizeBinWidth",
+                           DoubleValue(20));
+
+  // Run simulation 
+  Simulator::Run ();
+
+  // Write the ﬂow monitored results to "resultsWifiLteDc.xml" ﬁle
+  monitor->SerializeToXmlFile("resultsWifiLteDc.xml",true,true);
 
   Simulator::Destroy();
   return 0;

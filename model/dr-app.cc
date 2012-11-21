@@ -255,7 +255,8 @@ DemandResponseApplication::StartApplication (void)
     {
       TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
       m_socket = Socket::CreateSocket (GetNode (), tid);
-      InetSocketAddress local = InetSocketAddress (Ipv4Address::ConvertFrom(m_localAddress), 5050);
+      //InetSocketAddress local = InetSocketAddress (Ipv4Address::ConvertFrom(m_localAddress), 5050);
+      InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), 5050);
       m_socket->Bind (local);
     }
 
