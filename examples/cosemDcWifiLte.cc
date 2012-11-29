@@ -1,4 +1,4 @@
-/* -*-  Mode: C++; c-file-style: "gnu"; indent-tabs-mode:nil; -*- */
+        /* -*-  Mode: C++; c-file-style: "gnu"; indent-tabs-mode:nil; -*- */
 /*
  * Copyright (c) 2011 Centre Tecnologic de Telecomunicacions de Catalunya (CTTC)
  * Copyright (c) 2012 Uniandes 
@@ -39,6 +39,9 @@
 #include "ns3/demand-response-application-helper.h"
 #include "ns3/mdm-application-helper.h"
 #include "ns3/flow-monitor-module.h"
+#include <iostream>
+#include <fstream>
+#include <string> 
 
 // Default Network Topology
 //                                                                                    (Control Center)  
@@ -68,14 +71,15 @@ main (int argc, char *argv[])
   bool verbose = true;  // For COSEM
   uint16_t nUeNodes = 1;  // UE LTE nodes
   uint16_t nBsNodes = 1;  // BS LTE nodes
-  uint32_t nWifi = 1; // Smart Meters
+  uint32_t nWifi = 150; // Smart Meters
   uint32_t nCcCsma = 1; // Control Center servers (DR)
-  double simTime = 30.0;
+  double simTime = 300.0;
   double distance = 60.0;
   double interPacketInterval = 100;
 
   // Command line arguments
   CommandLine cmd;
+  cmd.AddValue("nWifi", "Number of Smart Meters", nWifi);
   cmd.AddValue("nUeNodes", "Number of eNodeBs + UE pairs", nUeNodes);
   cmd.AddValue("simTime", "Total duration of the simulation [s])", simTime);
   cmd.AddValue("distance", "Distance between eNBs [m]", distance);
@@ -86,12 +90,12 @@ main (int argc, char *argv[])
   cmd.Parse(argc, argv);
 
   // Wifi
-  if (nWifi > 18)
+  /*if (nWifi > 18)
     {
       std::cout << "Number of wifi nodes " << nWifi << 
                    " specified exceeds the mobility bounding box" << std::endl;
       exit (1);
-    }
+    }*/
 
   // For COSEM
   if (verbose)
@@ -271,13 +275,14 @@ main (int argc, char *argv[])
 
   MobilityHelper mobilityWifi;
 
-  mobilityWifi.SetPositionAllocator ("ns3::GridPositionAllocator",
+  /*mobilityWifi.SetPositionAllocator ("ns3::GridPositionAllocator",
                                  "MinX", DoubleValue (0.0),
                                  "MinY", DoubleValue (0.0),
                                  "DeltaX", DoubleValue (5.0),
                                  "DeltaY", DoubleValue (10.0),
-                                 "GridWidth", UintegerValue (3),
-                                 "LayoutType", StringValue ("RowFirst"));
+                                 //"GridWidth", UintegerValue (3),
+                                 "GridWidth", UintegerValue (100), // number of objects layed out on a line.
+                                 "LayoutType", StringValue ("RowFirst"));*/
 
   //mobilityWifi.SetMobilityModel ("ns3::RandomWalk2dMobilityModel",
   //                           "Bounds", RectangleValue (Rectangle (-50, 50, -50, 50)));
@@ -298,6 +303,9 @@ main (int argc, char *argv[])
   // Ipv4InterfaceContainer wifiInterfaces;
   // address.Assign (staDevices);
  
+  Ipv4InterfaceContainer dcWifiInterfaces;
+  dcWifiInterfaces.Add (address.Assign (apDevices));
+
   for (uint32_t i = 0; i < wifiStaNodes.GetN (); ++i)
      {
         serverInterfaces.Add (address.Assign (staDevices.Get (i)));
@@ -306,9 +314,6 @@ main (int argc, char *argv[])
   //Ipv4InterfaceContainer apInterfaces;
   //apInterfaces.Add (address.Assign (apDevices));
 
-  Ipv4InterfaceContainer dcWifiInterfaces;
-  dcWifiInterfaces.Add (address.Assign (apDevices));
-
 // -------------------------------------------------------------------------------
 //  COSEM & DATA CONCENTRATOR CONFIGURATION
 // -------------------------------------------------------------------------------
@@ -316,36 +321,36 @@ main (int argc, char *argv[])
   // Cosem Applications Servers 
   UdpCosemServerHelper cosemServer (serverInterfaces);
   ApplicationContainer serverApps = cosemServer.Install (wifiStaNodes);
-  serverApps.Start (Seconds (1.0));
-  serverApps.Stop (Seconds (29.0));
+  serverApps.Start (Seconds (0.0001));
+  serverApps.Stop (Seconds (simTime));
 
   // Cosem Application Clients 
-  UdpCosemClientHelper cosemClient (serverApps, dcWifiInterfaces, Seconds (2.0)); 
+  UdpCosemClientHelper cosemClient (serverApps, dcWifiInterfaces, Seconds (5.0)); 
   ApplicationContainer clientApps = cosemClient.Install (ueNodes.Get (0));
-  clientApps.Start (Seconds (1.0));
-  clientApps.Stop (Seconds (29.0));
+  clientApps.Start (Seconds (0.0001));
+  clientApps.Stop (Seconds (simTime-10));
 
   // Data Concentrator Application
   DataConcentratorApplicationHelper dc (clientApps, internetIpIfaces.GetAddress (1), ueIpIface.GetAddress (0)); 
   ApplicationContainer dcApps = dc.Install (ueNodes.Get (0));
-  dcApps.Start (Seconds (1.001));
-  dcApps.Stop (Seconds (29.0));
+  dcApps.Start (Seconds (0.0001));
+  dcApps.Stop (Seconds (simTime));
 
 // -------------------------------------------------------------------------------
 //  METER DATA MANAGEMENT & DEMAND RESPONSE APPLICATIONS CONFIGURATION 
 // -------------------------------------------------------------------------------
  
   // Meter Data Management Application on Control Center
-  MeterDataManagementApplicationHelper mdmHelper (dcApps, CcCsmaInterfaces.GetAddress (0), Seconds (5.0), 2.0);
+  MeterDataManagementApplicationHelper mdmHelper (dcApps, CcCsmaInterfaces.GetAddress (0), Seconds (20.0), 5.0);
   ApplicationContainer mdmApps = mdmHelper.Install (CcCsmaNodes.Get (0)); 
   mdmApps.Start (Seconds (1.0));
-  mdmApps.Stop (Seconds (29.0));
+  mdmApps.Stop (Seconds (simTime));
 
   // Demand Response Application on Control Center (Send demand response signals to Data Cocentrator)
   DemandResponseApplicationHelper drHelper (CcCsmaInterfaces.GetAddress (1), mdmApps);
   ApplicationContainer drApps = drHelper.Install (CcCsmaNodes.Get (1));
   drApps.Start (Seconds (1.0));
-  drApps.Stop (Seconds (29.0));
+  drApps.Stop (Seconds (simTime));
 
   //Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
  
@@ -353,6 +358,10 @@ main (int argc, char *argv[])
 
   phy.EnablePcap ("third", apDevices.Get (0));
   CcCsma.EnablePcap ("second", CcCsmaDevices.Get (1), true);
+
+  /*Ipv4GlobalRoutingHelper g;
+  Ptr<OutputStreamWrapper> routingStream= Create<OutputStreamWrapper>("dynamicDC.routes",std::ios::out);
+  g.PrintRoutingTableAllAt(Seconds(0),routingStream);*/
 
 
 // -------------------------------------------------------------------------------
@@ -381,6 +390,51 @@ main (int argc, char *argv[])
 
   // Run simulation 
   Simulator::Run ();
+
+  // Print per flow statistics
+  monitor->CheckForLostPackets ();
+  Ptr<Ipv4FlowClassifier> classifier = DynamicCast<Ipv4FlowClassifier> (flowmon.GetClassifier ());
+  std::map<FlowId, FlowMonitor::FlowStats> stats = monitor->GetFlowStats ();
+
+  // Open a file an recod the metrics
+  std::ofstream myfile;
+  std::ostringstream fileNameStream("");
+  fileNameStream << "metrics-" << nWifi << ".txt";
+  std::string fileName = fileNameStream.str();
+ // std::cout << fileName << "\n"; 
+  myfile.open(fileName.c_str());
+ 
+  myfile << "Flow_id  scr_Address   dst_Address  Mean{Throughput}  Mean{Delay}  Mean{Jitter}  PLR\n";
+
+  for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator i = stats.begin (); i != stats.end (); ++i)
+    {     
+      Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow (i->first);
+    /*myfile << "\nFlow " << i->first << " (" << t.sourceAddress << " -> " << t.destinationAddress << ")\n";           
+      myfile << "  Tx Bytes:   " << i->second.txBytes << "\n";
+      myfile << "  Rx Bytes:   " << i->second.rxBytes << "\n";
+      myfile << "  Tx Packets: " << i->second.txPackets << "\n";
+      myfile << "  Rx Packets: " << i->second.rxPackets << "\n";
+      myfile << "  Lost Packets: " << i->second.lostPackets << "\n";
+      myfile << "  Mean{Throughput}: " << (i->second.rxBytes * 8.0 / simTime)/ 1024 << " kbps\n"; 
+
+      if (i->second.rxPackets > 0)
+        {
+          myfile << "  Mean{Delay}: " << (i->second.delaySum.GetSeconds() / i->second.rxPackets) * 1000 << " ms\n";
+	  myfile << "  Mean{Jitter}: " << (i->second.jitterSum.GetSeconds() / (i->second.rxPackets-1)) * 1000 << " ms\n"; 
+        }*/
+
+     // Print Format: Flow_id scr_Address dst_Address  Mean{Throughput} Mean{Delay} Mean{Jitter} PLR
+     myfile << i->first << " "                      
+            << t.sourceAddress << " "   
+            << t.destinationAddress << " "  
+            << (i->second.rxBytes * 8.0 / simTime) << " "  //bps
+            << (i->second.delaySum.GetSeconds() / i->second.rxPackets) << " "  //secs
+            << (i->second.jitterSum.GetSeconds() / (i->second.rxPackets-1)) << " " //secs  
+            << (i->second.lostPackets / (i->second.rxPackets + i->second.lostPackets)) << "\n";  
+                   
+    }
+  // Close file
+  myfile.close();
 
   // Write the ﬂow monitored results to "resultsWifiLteDc.xml" ﬁle
   monitor->SerializeToXmlFile("resultsWifiLteDc.xml",true,true);
