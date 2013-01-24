@@ -50,7 +50,7 @@
 //  *      *         *       *                                                         =========== 
 //  |      |         |       |    7.0.0.0            10.0.0.0            1.0.0.0         |   
 // SM(1)  SM(0) ... SM(n)   DC ------------- eNB ::::::::::::::: PGW ::::::::::::::: GW-Router  
-//                           |   LTE channel (1)    PC Network   (1)     Internet               
+//                           |   LTE channel (1)    EPC Network  (1)     Internet               
 //   Wifi 10.1.3.0           x                                                          LAN 10.1.2.0         
 //   (AMI Network)          UE(LTE)                                                   (Control Center) 
 //
@@ -72,7 +72,7 @@ main (int argc, char *argv[])
   bool verbose = true;      // For COSEM
   uint16_t nDcUeNodes = 1;  // DC UE LTE nodes
   uint16_t nBsNodes = 1;    // BS LTE nodes
-  uint32_t nWifi = 5;       // Smart Meters
+  uint32_t nWifi = 252;       // Smart Meters
   uint32_t nCcCsma = 2;     // Control Center servers (DR-Engine + MDMS)
   uint64_t rngRun = 1;     // run number
   double simTime =  370.0;
@@ -252,6 +252,8 @@ main (int argc, char *argv[])
   mobility.Install(dcUeNodes);  // DC-UE mobility instalation
   mobility.Install(enbNodes); // Enb mobility instalation
   mobility.Install(pgw); // pgw mobility instalation
+  mobility.Install(CcCsmaNodes); // CC's server mobility instalation
+  mobility.Install(wifiStaNodes); // SM-Wifi mobility instalation
 
   //--------------------Cell #1 Enb-1 for the AMI Network---------------------------//
   // Configure Tun devices for enb-1
@@ -297,34 +299,67 @@ main (int argc, char *argv[])
 // Building the AMI Topology 
 // -------------------------------------------------------------------------------
 
-  // Install Mobility Model for AMI and CC network
+  // Establishing nodes' coordinates of the AMI System 
+  // For EPC network & DC-UE & SM-WIFI
+  uint32_t a = 0;
+  //std::cout << "a = " << a << "\n";
+  uint32_t b = nDcUeNodes + nBsNodes + nWifi + 1; // +1 (PGW node)
+  //std::cout << "b = " << b << "\n";
+  double x, y;
+  std::ifstream in; // read coordinates from a topology file
+  in.open ("coordNodesAMI.txt");
+  if(in.fail())
+    { 
+      std::cout << "ERROR: Can't open the input file!\n" << std::endl;
+      return 1;
+    } 
+
+  while (!in.eof() & (a < b))
+       {
+         in >> x;
+         in >> y;
+         if (a == 0)
+           (pgw -> GetObject<ConstantPositionMobilityModel>()) -> SetPosition(Vector(x, y, 0.0));  // PWG
+
+         if (a == 1)
+           (enbNodes.Get(0) -> GetObject<ConstantPositionMobilityModel>()) -> SetPosition(Vector(x, y, 0.0)); // ENB
+         
+         if (a == 2)
+           (dcUeNodes.Get(0) -> GetObject<ConstantPositionMobilityModel>()) -> SetPosition(Vector(x, y, 0.0)); // DC
+
+         if (a > 2)
+           (wifiStaNodes.Get((a-3)) -> GetObject<ConstantPositionMobilityModel>()) -> SetPosition(Vector(x, y, 0.0)); // SM
+
+         a ++;
+       }
+  in.close ();
+
+  // CC's servers  
+  for (uint32_t i = 0; i < CcCsmaNodes.GetN (); ++i)
+     {
+        (CcCsmaNodes.Get(i) -> GetObject<ConstantPositionMobilityModel>()) -> SetPosition(Vector(0.0, 0.0, 0.0)); // CC's server 
+     }
+ 
+ /* // FOR SMs-Wifi (must to be generated outside this script, because every that we run a independent simulation, the coordinates of SMs   nodes change (X,Y are random variable)
   ObjectFactory pos;  // Based on manet-routing-compare.cc
   pos.SetTypeId ("ns3::RandomRectanglePositionAllocator");  // Rectangle Area 120mx120m
-  pos.Set ("X", StringValue ("ns3::UniformRandomVariable[Min=10.0|Max=120.0]"));
-  pos.Set ("Y", StringValue ("ns3::UniformRandomVariable[Min=10.0|Max=120.0]"));
-
-  mobility.Install(CcCsmaNodes); // CC's server mobility instalation
+  std::ostringstream XxStream("");
+  XxStream << "ns3::UniformRandomVariable[Min=" << (x*1000+10) << "|Max=" << (x*1000+120) << "]";
+  std::string Xx = XxStream .str();
+  std::ostringstream YyStream("");
+  YyStream << "ns3::UniformRandomVariable[Min=" << (y*1000+10) << "|Max=" << (y*1000+120) << "]";
+  std::string Yy  = YyStream .str();
+  pos.Set ("X", StringValue (Xx.c_str()));
+  pos.Set ("Y", StringValue (Yy.c_str()));
 
   for (uint16_t i = 0; i < wifiStaNodes.GetN (); i++)
      {
        Ptr<PositionAllocator> taPositionAlloc = pos.Create ()->GetObject<PositionAllocator> ();
        mobility.SetPositionAllocator(taPositionAlloc);
      }
-  mobility.Install(wifiStaNodes); // SM-Wifi mobility instalation*/
+*/
 
-  // Reset coordinates
-  (pgw -> GetObject<ConstantPositionMobilityModel>()) -> SetPosition(Vector(1200.0, 1200.0, 0.0));  // PWG
-  (enbNodes.Get(0) -> GetObject<ConstantPositionMobilityModel>()) -> SetPosition(Vector(200.0, 200.0, 0.0)); // ENB
-  (dcUeNodes.Get(0) -> GetObject<ConstantPositionMobilityModel>()) -> SetPosition(Vector(50.0, 50.0, 0.0)); // DC-UE-WIFI
-  for (uint32_t i = 0; i < CcCsmaNodes.GetN (); ++i)
-     {
-        (CcCsmaNodes.Get(i) -> GetObject<ConstantPositionMobilityModel>()) -> SetPosition(Vector(0.0, 0.0, 0.0)); // CC's server 
-     }
-  /*(wifiStaNodes.Get(0) -> GetObject<ConstantPositionMobilityModel>()) -> SetPosition(Vector(50.1, 119.1, 0.0)); // SM-1
-  std::cout << "SM-1: (id = " << serverInterfaces.GetAddress (0) << ")\n";
-  (wifiStaNodes.Get(1) -> GetObject<ConstantPositionMobilityModel>()) -> SetPosition(Vector(50.1, 50.1, 0.0)); // SM-2
-  std::cout << "SM-2: (id = " << serverInterfaces.GetAddress (1) << ")\n";*/
-   
+
   // Source: https://bitbucket.org/domargan/ns-3-waf/src/5768685f9fdb/samples/main-grid-topology.cc?at=ns-3.1
   // iterate our nodes and print their position.
   Ptr<MobilityModel> position_pgw = pgw->GetObject<MobilityModel> ();
@@ -378,7 +413,7 @@ main (int argc, char *argv[])
     }
 
 // -------------------------------------------------------------------------------
-//  COSEM & DATA CONCENTRATOR CONFIGURATION
+//  COSEM & DATA CONCENTRATOR APPLICATIONS CONFIGURATION
 // -------------------------------------------------------------------------------
  
   // Cosem Applications Servers 
@@ -467,7 +502,7 @@ main (int argc, char *argv[])
   Ptr<Ipv4FlowClassifier> classifier = DynamicCast<Ipv4FlowClassifier> (flowmon.GetClassifier ());
   std::map<FlowId, FlowMonitor::FlowStats> stats = monitor->GetFlowStats ();
 
-  // Open a file an recod the metrics
+  // Open a file an record the metrics
   std::ofstream myfile;
   std::ostringstream fileNameStream("");
   fileNameStream << "metrics-" << nWifi << "-" << rngRun << ".txt";
